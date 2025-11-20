@@ -3,9 +3,6 @@ package server.zookeeper;
 import java.util.Arrays;
 import java.util.UUID;
 
-import org.apache.ratis.conf.Parameters;
-import org.apache.ratis.conf.RaftProperties;
-import org.apache.ratis.grpc.GrpcFactory;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
@@ -13,26 +10,21 @@ import org.apache.ratis.protocol.RaftPeer;
 import server.zookeeper.Modules.RatisServer;
 
 public class Main {
+
     public static void main(String[] args) {
         try {
-            String nodeId = System.getenv("NODE_ID");
-            String portStr = System.getenv("PORT");
-            String cluster = System.getenv("CLUSTER");
-
-            if (nodeId == null || portStr == null || cluster == null) {
-                throw new IllegalStateException("NODE_ID, PORT, and CLUSTER must be set");
-            }
+            // Use the helper method to get required env variables
+            String nodeId = getRequiredEnv("NODE_ID");
+            String portStr = getRequiredEnv("PORT");
+            String cluster = getRequiredEnv("CLUSTER");
 
             int port = Integer.parseInt(portStr);
 
-            // Cluster ID
             RaftGroupId groupId = RaftGroupId.valueOf(
                     UUID.fromString("00000000-0000-0000-0000-000000000001"));
 
-            // Parse cluster peers
             RaftPeer[] peers = Arrays.stream(cluster.split(","))
                     .map(entry -> {
-                        // Format: n1:host:6001
                         String[] parts = entry.split(":");
                         String peerId = parts[0];
                         String host = parts[1];
@@ -47,13 +39,27 @@ public class Main {
 
             RaftGroup raftGroup = RaftGroup.valueOf(groupId, peers);
 
-            // Build Ratis Server
             RatisServer server = new RatisServer(nodeId, port, raftGroup);
             server.start();
 
+        } catch (IllegalStateException e) {
+            System.err.println("Environment variable error: " + e.getMessage());
+            System.exit(1);
+        } catch (NumberFormatException e) {
+            System.err.println("PORT must be a valid integer");
+            System.exit(1);
         } catch (Exception e) {
             System.err.println("Error starting server: " + e.getMessage());
             e.printStackTrace();
+            System.exit(1);
         }
+    }
+
+    private static String getRequiredEnv(String key) {
+        String value = System.getenv(key);
+        if (value == null || value.isEmpty()) {
+            throw new IllegalStateException(key + " must be set");
+        }
+        return value;
     }
 }
