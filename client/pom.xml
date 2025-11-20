@@ -49,7 +49,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.example.Main</mainClass>
+                            <mainClass>client.zookeeper.Main</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
