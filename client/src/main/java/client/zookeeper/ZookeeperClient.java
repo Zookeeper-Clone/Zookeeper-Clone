@@ -11,46 +11,40 @@ public class ZookeeperClient {
         this.raftClient = raftClient;
     }
 
-    public String readAll() {
+    private String sendMessage(String command, boolean expectBoolean) {
         try {
-            RaftClientReply reply = raftClient.io().sendReadOnly(Message.valueOf("READALL"));
-            return reply.isSuccess()
-                    ? reply.getMessage().getContent().toStringUtf8()
-                    : "ERROR";
+            RaftClientReply reply;
+            if (command.startsWith("GET") || command.equals("READALL")) {
+                reply = raftClient.io().sendReadOnly(Message.valueOf(command));
+            } else {
+                reply = raftClient.io().send(Message.valueOf(command));
+            }
+
+            if (!reply.isSuccess()) {
+                return expectBoolean ? null : "ERROR";
+            }
+
+            String content = reply.getMessage().getContent().toStringUtf8();
+            return expectBoolean ? content : content;
         } catch (Exception e) {
-            return "ERROR";
+            return expectBoolean ? null : "ERROR";
         }
+    }
+
+    public String readAll() {
+        return sendMessage("READALL", false);
     }
 
     public String read(String key) {
-        try {
-            RaftClientReply reply = raftClient.io().sendReadOnly(Message.valueOf("GET " + key));
-            return reply.isSuccess()
-                    ? reply.getMessage().getContent().toStringUtf8()
-                    : "ERROR";
-        } catch (Exception e) {
-            return "ERROR";
-        }
+        return sendMessage("GET " + key, false);
     }
 
     public String write(String key, String value) {
-        try {
-            RaftClientReply reply = raftClient.io().send(Message.valueOf("PUT " + key + "=" + value));
-            return reply.isSuccess()
-                    ? reply.getMessage().getContent().toStringUtf8()
-                    : "ERROR";
-        } catch (Exception e) {
-            return "ERROR";
-        }
+        return sendMessage("PUT " + key + "=" + value, false);
     }
 
     public boolean delete(String key) {
-        try {
-            RaftClientReply reply = raftClient.io().send(Message.valueOf("DELETE " + key));
-            return reply.isSuccess()
-                    && "OK ENTRY DELETED".equals(reply.getMessage().getContent().toStringUtf8());
-        } catch (Exception e) {
-            return false;
-        }
+        String result = sendMessage("DELETE " + key, false);
+        return "OK ENTRY DELETED".equals(result);
     }
 }
