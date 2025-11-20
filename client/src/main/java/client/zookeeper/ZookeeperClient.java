@@ -1,4 +1,4 @@
-package com.example;
+package client.zookeeper;
 
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.Message;

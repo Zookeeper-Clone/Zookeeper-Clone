@@ -1,3 +1,10 @@
 {
-    "maven.view": "flat"
+    "maven.view": "flat",
+    "python-envs.pythonProjects": [
+        {
+            "path": "client/src/main/java/zookeeper/client",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
 }

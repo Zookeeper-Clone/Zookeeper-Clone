@@ -3,7 +3,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import org.junit.jupiter.api.Test;
 
-import com.example.ZookeeperClient;
+import client.zookeeper.ZookeeperClient;
 
 public class TestStore {
     @Test

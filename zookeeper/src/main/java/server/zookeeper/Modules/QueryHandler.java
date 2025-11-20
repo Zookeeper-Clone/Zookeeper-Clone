@@ -1,4 +1,4 @@
-package com.example.Modules;
+package server.zookeeper.Modules;
 
 import java.util.HashMap;
 import java.util.Map;

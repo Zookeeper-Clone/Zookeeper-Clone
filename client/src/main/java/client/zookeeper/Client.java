@@ -1,4 +1,4 @@
-package com.example;
+package client.zookeeper;
 
 import java.util.UUID;
 

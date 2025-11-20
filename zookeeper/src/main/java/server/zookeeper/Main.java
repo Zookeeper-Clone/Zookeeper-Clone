@@ -1,4 +1,4 @@
-package com.example;
+package server.zookeeper;
 
 import java.util.Arrays;
 import java.util.UUID;
@@ -10,7 +10,7 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 
-import com.example.Modules.RatisServer;
+import server.zookeeper.Modules.RatisServer;
 
 public class Main {
     public static void main(String[] args) {
