@@ -68,57 +68,73 @@ public class MockRaftClient implements RaftClient {
     // Core logic
     // ---------------------
     private RaftClientReply applyMutation(String msg) {
-        String response;
-
-        if (msg.startsWith("PUT ")) {
-            String payload = msg.substring(4);
-            String[] parts = payload.split("=", 2);
-
-            if (parts.length != 2) {
-                response = "ERROR INVALID MESSAGE";
-            } else {
-                String key = parts[0];
-                String value = parts[1];
-
-                boolean existed = store.containsKey(key);
-                store.put(key, value);
-
-                response = existed ? "OK ENTRY UPDATED" : "OK ENTRY ADDED";
-            }
-        } else if (msg.startsWith("DELETE ")) {
-            String key = msg.substring(7).trim();
-            response = store.remove(key) != null
-                    ? "OK ENTRY DELETED"
-                    : "ERROR CAN'T DELETE";
-        } else {
-            response = "INVALID QUERY";
+        String[] tokens = msg.split(" ", 2);
+        if (tokens.length < 2) {
+            return success("ERROR INVALID MESSAGE");
         }
 
-        return success(response);
+        String command = tokens[0].toUpperCase();
+        String payload = tokens[1];
+
+        switch (command) {
+            case "PUT":
+                return handlePut(payload);
+            case "DELETE":
+                return handleDelete(payload);
+            default:
+                return success("INVALID QUERY");
+        }
+    }
+
+    private RaftClientReply handlePut(String payload) {
+        String[] parts = payload.split("=", 2);
+        if (parts.length != 2) {
+            return success("ERROR INVALID MESSAGE");
+        }
+
+        String key = parts[0];
+        String value = parts[1];
+        boolean existed = store.containsKey(key);
+        store.put(key, value);
+
+        return success(existed ? "OK ENTRY UPDATED" : "OK ENTRY ADDED");
+    }
+
+    private RaftClientReply handleDelete(String key) {
+        boolean removed = store.remove(key) != null;
+        return success(removed ? "OK ENTRY DELETED" : "ERROR CAN'T DELETE");
     }
 
     private RaftClientReply applyQuery(String msg) {
-        String response;
+        String[] tokens = msg.split(" ", 2);
+        String command = tokens[0].toUpperCase();
 
-        if (msg.equals("READALL")) {
-            StringBuilder sb = new StringBuilder();
-
-            for (String key : store.keySet()) {
-                sb.append(key)
-                        .append(" : ")
-                        .append(store.get(key))
-                        .append("\n");
-            }
-
-            response = sb.toString();
-        } else if (msg.startsWith("GET ")) {
-            String key = msg.substring(4).trim();
-            response = store.getOrDefault(key, "KEY DOESN'T EXIST");
-        } else {
-            response = "INVALID QUERY";
+        switch (command) {
+            case "READALL":
+                return handleReadAll();
+            case "GET":
+                if (tokens.length < 2) {
+                    return success("ERROR INVALID MESSAGE");
+                }
+                return handleGet(tokens[1]);
+            default:
+                return success("INVALID QUERY");
         }
+    }
 
-        return success(response);
+    private RaftClientReply handleReadAll() {
+        StringBuilder sb = new StringBuilder();
+        for (String key : store.keySet()) {
+            sb.append(key)
+                    .append(" : ")
+                    .append(store.get(key))
+                    .append("\n");
+        }
+        return success(sb.toString());
+    }
+
+    private RaftClientReply handleGet(String key) {
+        return success(store.getOrDefault(key, "KEY DOESN'T EXIST"));
     }
 
     private RaftClientReply success(String content) {
