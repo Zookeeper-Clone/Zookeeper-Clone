@@ -27,7 +27,7 @@ public class QueryHandler {
             }
         } else if (query.startsWith("DELETE ")) {
             String key = query.substring(7).trim();
-            response = keyValStore.remove(key) != null ? "OK ENTRY DELETED" : "ERROR CAN'T DELETE";
+            response = keyValStore.remove(key) != null ? "OK ENTRY DELETED" : "KEY DOESN'T EXIST";
         } else {
             response = "INVALID QUERY";
         }
