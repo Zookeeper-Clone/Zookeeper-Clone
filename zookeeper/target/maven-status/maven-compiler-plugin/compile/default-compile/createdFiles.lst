@@ -1,2 +1,4 @@
 com/example/Modules/RatisServer.class
 com/example/Main.class
+com/example/Modules/QueryHandler.class
+com/example/Modules/RocksStateMachine.class

@@ -27,24 +27,23 @@ public class Main {
 
             // Cluster ID
             RaftGroupId groupId = RaftGroupId.valueOf(
-                UUID.fromString("00000000-0000-0000-0000-000000000001")
-            );
+                    UUID.fromString("00000000-0000-0000-0000-000000000001"));
 
             // Parse cluster peers
             RaftPeer[] peers = Arrays.stream(cluster.split(","))
-                .map(entry -> {
-                    // Format: n1:host:6001
-                    String[] parts = entry.split(":");
-                    String peerId = parts[0];
-                    String host = parts[1];
-                    int peerPort = Integer.parseInt(parts[2]);
+                    .map(entry -> {
+                        // Format: n1:host:6001
+                        String[] parts = entry.split(":");
+                        String peerId = parts[0];
+                        String host = parts[1];
+                        int peerPort = Integer.parseInt(parts[2]);
 
-                    return RaftPeer.newBuilder()
-                            .setId(peerId)
-                            .setAddress(host + ":" + peerPort)
-                            .build();
-                })
-                .toArray(RaftPeer[]::new);
+                        return RaftPeer.newBuilder()
+                                .setId(peerId)
+                                .setAddress(host + ":" + peerPort)
+                                .build();
+                    })
+                    .toArray(RaftPeer[]::new);
 
             RaftGroup raftGroup = RaftGroup.valueOf(groupId, peers);
 
