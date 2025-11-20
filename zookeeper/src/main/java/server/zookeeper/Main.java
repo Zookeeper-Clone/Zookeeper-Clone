@@ -17,9 +17,9 @@ public class Main {
             String nodeId = getRequiredEnv("NODE_ID");
             String portStr = getRequiredEnv("PORT");
             String cluster = getRequiredEnv("CLUSTER");
-
+            String threshold = getRequiredEnv("SNAPSHOT_THRESHOLD");
             int port = Integer.parseInt(portStr);
-
+            int autoTriggerThreshold = Integer.parseInt(threshold);
             RaftGroupId groupId = RaftGroupId.valueOf(
                     UUID.fromString("00000000-0000-0000-0000-000000000001"));
 
@@ -39,14 +39,14 @@ public class Main {
 
             RaftGroup raftGroup = RaftGroup.valueOf(groupId, peers);
 
-            RatisServer server = new RatisServer(nodeId, port, raftGroup);
+            RatisServer server = new RatisServer(nodeId, port, raftGroup, autoTriggerThreshold);
             server.start();
 
         } catch (IllegalStateException e) {
             System.err.println("Environment variable error: " + e.getMessage());
             System.exit(1);
         } catch (NumberFormatException e) {
-            System.err.println("PORT must be a valid integer");
+            System.err.println("PORT and SNAPSHOT_THRESHOLD must be a valid integers");
             System.exit(1);
         } catch (Exception e) {
             System.err.println("Error starting server: " + e.getMessage());
