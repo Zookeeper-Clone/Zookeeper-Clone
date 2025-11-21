@@ -8,8 +8,8 @@ import server.zookeeper.DB.DataBase;
 public class QueryHandler {
     private final DataBase keyValStore;
 
-    public QueryHandler() {
-        this.keyValStore = CRocksDB.getInstance();
+    public QueryHandler(DataBase keyValStore) {
+        this.keyValStore = keyValStore;
     }
 
     private static class Command {

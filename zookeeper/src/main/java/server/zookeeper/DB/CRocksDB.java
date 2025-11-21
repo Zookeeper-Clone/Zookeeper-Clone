@@ -20,7 +20,7 @@ public class CRocksDB implements DataBase, Closeable {
     private CRocksDB(){
         RocksDB.loadLibrary();
         try (final Options options = new Options().setCreateIfMissing(true)) {
-            db = RocksDB.open(options, "/RocksDB"); // TODO : replace with the node's DataBase Directory
+            db = RocksDB.open(options, "/RocksDB"); // TODO : make it an env variable
         } catch (RocksDBException e) {
             throw new RuntimeException("Error opening the DataBase", e);
         }

@@ -12,6 +12,7 @@ import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.zookeeper.DB.CRocksDB;
 
 public class RatisServer {
     private final RaftServer server;
@@ -29,7 +30,7 @@ public class RatisServer {
                 .setServerId(RaftPeerId.valueOf(nodeId))
                 .setGroup(raftGroup)
                 .setProperties(properties)
-                .setStateMachine(new RocksStateMachine())
+                .setStateMachine(new KVStateMachine(CRocksDB.getInstance()))
                 .build();
     }
 

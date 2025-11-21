@@ -5,10 +5,15 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
+import server.zookeeper.DB.DataBase;
 
-public class RocksStateMachine extends BaseStateMachine {
+public class KVStateMachine extends BaseStateMachine {
 
-    private final QueryHandler queryHandler = new QueryHandler();
+    private final QueryHandler queryHandler;
+
+    public KVStateMachine(DataBase keyValStore) {
+        this.queryHandler = new QueryHandler(keyValStore);
+    }
 
     @Override
     public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
