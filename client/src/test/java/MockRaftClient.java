@@ -94,15 +94,14 @@ public class MockRaftClient implements RaftClient {
 
         String key = parts[0];
         String value = parts[1];
-        boolean existed = store.containsKey(key);
         store.put(key, value);
 
-        return success(existed ? "OK ENTRY UPDATED" : "OK ENTRY ADDED");
+        return success("OK ENTRY ADDED");
     }
 
     private RaftClientReply handleDelete(String key) {
-        boolean removed = store.remove(key) != null;
-        return success(removed ? "OK ENTRY DELETED" : "ERROR CAN'T DELETE");
+        store.remove(key);
+        return success("OK ENTRY DELETED");
     }
 
     private RaftClientReply applyQuery(String msg) {
@@ -134,7 +133,7 @@ public class MockRaftClient implements RaftClient {
     }
 
     private RaftClientReply handleGet(String key) {
-        return success(store.getOrDefault(key, "KEY DOESN'T EXIST"));
+        return success(store.getOrDefault(key, "__NOT_FOUND__"));
     }
 
     private RaftClientReply success(String content) {

@@ -27,6 +27,11 @@
             <artifactId>logback-classic</artifactId>
             <version>1.4.14</version>
         </dependency>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>9.1.0</version>
+        </dependency>
     </dependencies>
     <properties>
         <ratis.version>3.1.1</ratis.version>

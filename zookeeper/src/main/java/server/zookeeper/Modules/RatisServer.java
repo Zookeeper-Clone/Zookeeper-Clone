@@ -10,7 +10,6 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
-import org.apache.ratis.statemachine.impl.BaseStateMachine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

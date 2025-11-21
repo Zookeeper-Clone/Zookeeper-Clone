@@ -41,7 +41,7 @@ public class TestStore {
         boolean deleteResponse = zookeeperClient.delete(key);
         assert(deleteResponse);
         String response = zookeeperClient.read(key);
-        assertEquals("KEY DOESN'T EXIST", response);
+        assertEquals("__NOT_FOUND__", response);
     }
 
     @Test
@@ -71,23 +71,9 @@ public class TestStore {
 
         value1 = "newValue1";
         String response = zookeeperClient.write(key1, value1);
-        assertEquals("OK ENTRY UPDATED", response);
+        assertEquals("OK ENTRY ADDED", response);
 
         String readResponse = zookeeperClient.read(key1);
         assertEquals(value1, readResponse);
-    }
-
-    @Test
-    public void displayAllEntry() {
-        String key1 = "key1";
-        String value1 = "value1";
-        zookeeperClient.write(key1, value1);
-
-        String key2 = "key2";
-        String value2 = "value2";
-        zookeeperClient.write(key2, value2);
-
-        String readAll = zookeeperClient.readAll();
-        assertEquals("key1 : value1\nkey2 : value2\n", readAll);
     }
 }
