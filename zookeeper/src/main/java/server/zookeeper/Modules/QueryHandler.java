@@ -2,7 +2,6 @@ package server.zookeeper.Modules;
 
 import java.nio.charset.StandardCharsets;
 import org.apache.ratis.protocol.Message;
-import server.zookeeper.DB.CRocksDB;
 import server.zookeeper.DB.DataBase;
 
 public class QueryHandler {

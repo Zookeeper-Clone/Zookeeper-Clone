@@ -1,10 +1,7 @@
 package client.zookeeper;
 
-import java.util.UUID;
 
 import org.apache.ratis.client.RaftClient;
-import org.apache.ratis.protocol.RaftGroup;
-import org.apache.ratis.protocol.RaftGroupId;
 
 public class Client {
     public static void main(String[] args) {
@@ -16,8 +13,8 @@ public class Client {
                                     .setGroupId(groupId)
                                     .build();
         ZookeeperClient client = new ZookeeperClient(raftClient);
-//        System.out.println(client.write("sabry", "aw3a tktb comment"));
-//        System.out.println(client.write("hutho", "mlk4 d3wa"));
+       System.out.println(client.write("sabry", "aw3a tktb comment"));
+       System.out.println(client.write("hutho", "mlk4 d3wa"));
 //        System.out.println(client.read("nasr"));
 //        System.out.println(client.write("dee4a", "2"));
 //        System.out.println(client.read("nasr"));
