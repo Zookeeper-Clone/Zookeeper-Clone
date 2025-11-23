@@ -13,11 +13,13 @@ public class QueryHandler {
 
     private static class Command {
         String type;
-        String payload;
+        String payload;     
+        String cFamilyName;  
 
-        Command(String type, String payload) {
+        Command(String type, String payload, String cFamilyName) {
             this.type = type;
             this.payload = payload;
+            this.cFamilyName = cFamilyName;
         }
     }
 
@@ -33,26 +35,40 @@ public class QueryHandler {
 
     private Command parseCommand(String query) {
         String trimmed = query.trim();
+
+        // Extract type
         int spaceIndex = trimmed.indexOf(' ');
+        String type;
+        String rest;
 
         if (spaceIndex == -1) {
-            return new Command(trimmed.toUpperCase(), "");
+            type = trimmed.toUpperCase();
+            rest = "";
+        } else {
+            type = trimmed.substring(0, spaceIndex).toUpperCase();
+            rest = trimmed.substring(spaceIndex + 1).trim();
+        }
+        String cFamilyName = null;
+        String payload = rest;
+
+        int inIndex = rest.lastIndexOf(" IN ");
+        if (inIndex != -1) {
+            payload = rest.substring(0, inIndex).trim();
+            cFamilyName = rest.substring(inIndex + 4).trim();
         }
 
-        String type = trimmed.substring(0, spaceIndex).toUpperCase();
-        String payload = trimmed.substring(spaceIndex + 1).trim();
-
-        return new Command(type, payload);
+        return new Command(type, payload, cFamilyName);
     }
 
-    private Message executeMutation(Command command) {
+
+    private Message executeMutation(Command cmd) {
         String response;
-        switch (command.type) {
+        switch (cmd.type) {
             case "PUT":
-                response = put(command.payload);
+                response = put(cmd.payload, cmd.cFamilyName);
                 break;
             case "DELETE":
-                response = delete(command.payload);
+                response = delete(cmd.payload, cmd.cFamilyName);
                 break;
             default:
                 response = "INVALID QUERY";
@@ -60,37 +76,54 @@ public class QueryHandler {
         return Message.valueOf(response);
     }
 
-    private Message executeQuery(Command command) {
+
+    private Message executeQuery(Command cmd) {
         String response;
-        if (command.type.equals("GET")) {
-            response = get(command.payload);
+        if (cmd.type.equals("GET")) {
+            response = get(cmd.payload, cmd.cFamilyName);
         } else {
             response = "INVALID QUERY";
         }
         return Message.valueOf(response);
     }
 
-    private String put(String payload) {
+
+    private String put(String payload, String cFamilyName) {
         String[] parts = payload.split("=", 2);
         if (parts.length != 2)
             return "ERROR INVALID MESSAGE";
 
         String key = parts[0];
         String value = parts[1];
-        keyValStore.put(key.getBytes(), value.getBytes());
+
+        if (cFamilyName == null)
+            keyValStore.put(key.getBytes(), value.getBytes());
+        else
+            keyValStore.put(key.getBytes(), value.getBytes(), cFamilyName);
+
         return "OK ENTRY ADDED";
     }
 
-    private String delete(String key) {
-        keyValStore.delete(key.getBytes());
-        return "OK"; // no need to know if it exists before or not
+    private String delete(String key, String cFamilyName) {
+        if (cFamilyName == null)
+            keyValStore.delete(key.getBytes());
+        else
+            keyValStore.delete(key.getBytes(), cFamilyName);
+
+        return "OK";
     }
 
-    private String get(String key) {
-        byte[] val = keyValStore.get(key.getBytes());
-        if (val == null) {
+    private String get(String key, String cFamilyName) {
+        byte[] val;
+
+        if (cFamilyName == null)
+            val = keyValStore.get(key.getBytes());
+        else
+            val = keyValStore.get(key.getBytes(), cFamilyName);
+
+        if (val == null)
             return "__NOT_FOUND__";
-        }
+
         return new String(val, StandardCharsets.UTF_8);
     }
 }

@@ -15,6 +15,8 @@ public class Client {
         ZookeeperClient client = new ZookeeperClient(raftClient);
        System.out.println(client.write("sabry", "aw3a tktb comment"));
        System.out.println(client.write("hutho", "mlk4 d3wa"));
+       System.out.println(client.write("nasr", "gamed", "column 1"));
+       System.out.println(client.write("nasr", "gamed awy", "column 2"));
 //        System.out.println(client.read("nasr"));
 //        System.out.println(client.write("dee4a", "2"));
 //        System.out.println(client.read("nasr"));
@@ -22,5 +24,8 @@ public class Client {
 //        System.out.println(client.delete("nasr"));
         System.out.println(client.read("sabry"));
         System.out.println(client.read("hutho"));
+        System.out.println(client.read("nasr"));
+        System.out.println(client.read("nasr","column 1"));
+        System.out.println(client.read("nasr","column 2"));
     }
 }
