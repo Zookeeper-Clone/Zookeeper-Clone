@@ -1,11 +1,16 @@
 package server.zookeeper.Modules;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import org.apache.ratis.protocol.Message;
+import server.zookeeper.DB.CRocksDB;
+import server.zookeeper.DB.DataBase;
 
 public class QueryHandler {
-    private final Map<String, String> keyValStore = new HashMap<>();
+    private final DataBase keyValStore;
+
+    public QueryHandler(DataBase keyValStore) {
+        this.keyValStore = keyValStore;
+    }
 
     private static class Command {
         String type;
@@ -58,15 +63,10 @@ public class QueryHandler {
 
     private Message executeQuery(Command command) {
         String response;
-        switch (command.type) {
-            case "READALL":
-                response = readAll();
-                break;
-            case "GET":
-                response = get(command.payload);
-                break;
-            default:
-                response = "INVALID QUERY";
+        if (command.type.equals("GET")) {
+            response = get(command.payload);
+        } else {
+            response = "INVALID QUERY";
         }
         return Message.valueOf(response);
     }
@@ -78,24 +78,20 @@ public class QueryHandler {
 
         String key = parts[0];
         String value = parts[1];
-        boolean existed = keyValStore.containsKey(key);
-        keyValStore.put(key, value);
-        return existed ? "OK ENTRY UPDATED" : "OK ENTRY ADDED";
+        keyValStore.put(key.getBytes(), value.getBytes());
+        return "OK ENTRY ADDED";
     }
 
     private String delete(String key) {
-        return keyValStore.remove(key) != null ? "OK ENTRY DELETED" : "KEY DOESN'T EXIST";
-    }
-
-    private String readAll() {
-        StringBuilder sb = new StringBuilder();
-        for (String key : keyValStore.keySet()) {
-            sb.append(key).append(" : ").append(keyValStore.get(key)).append("\n");
-        }
-        return sb.toString();
+        keyValStore.delete(key.getBytes());
+        return "OK"; // no need to know if it exists before or not
     }
 
     private String get(String key) {
-        return keyValStore.getOrDefault(key, "KEY DOESN'T EXIST");
+        byte[] val = keyValStore.get(key.getBytes());
+        if (val == null) {
+            return "__NOT_FOUND__";
+        }
+        return new String(val, StandardCharsets.UTF_8);
     }
 }

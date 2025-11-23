@@ -16,11 +16,14 @@ public class Client {
                                     .setGroupId(groupId)
                                     .build();
         ZookeeperClient client = new ZookeeperClient(raftClient);
-        System.out.println(client.write("nasr", "1"));
-        System.out.println(client.read("nasr"));
-        System.out.println(client.write("dee4a", "2"));
-        System.out.println(client.readAll());
-        System.out.println(client.delete("nasr"));
-        System.out.println(client.readAll());
+//        System.out.println(client.write("sabry", "aw3a tktb comment"));
+//        System.out.println(client.write("hutho", "mlk4 d3wa"));
+//        System.out.println(client.read("nasr"));
+//        System.out.println(client.write("dee4a", "2"));
+//        System.out.println(client.read("nasr"));
+//        System.out.println(client.read("dee4a"));
+//        System.out.println(client.delete("nasr"));
+        System.out.println(client.read("sabry"));
+        System.out.println(client.read("hutho"));
     }
 }
