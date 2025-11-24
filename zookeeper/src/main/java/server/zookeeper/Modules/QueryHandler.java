@@ -6,6 +6,7 @@ import server.zookeeper.DB.DataBase;
 
 public class QueryHandler {
     private final DataBase keyValStore;
+    private final String INVALID_QUERY = "INVALID QUERY";
 
     public QueryHandler(DataBase keyValStore) {
         this.keyValStore = keyValStore;
@@ -85,7 +86,7 @@ public class QueryHandler {
                 response = delete(cmd.payload, cmd.directoryName);
                 break;
             default:
-                response = "INVALID QUERY";
+                response = INVALID_QUERY;
         }
         return Message.valueOf(response);
     }
@@ -97,7 +98,7 @@ public class QueryHandler {
                 response = get(cmd.payload, cmd.directoryName);
                 break;
             default:
-                response = "INVALID QUERY";
+                response = INVALID_QUERY;
         }
         return Message.valueOf(response);
     }
