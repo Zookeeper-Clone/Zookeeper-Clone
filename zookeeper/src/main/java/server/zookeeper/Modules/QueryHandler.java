@@ -11,15 +11,22 @@ public class QueryHandler {
         this.keyValStore = keyValStore;
     }
 
-    private static class Command {
-        String type;
-        String payload;     
-        String cFamilyName;  
+    private enum CommandType {
+        PUT,
+        DELETE,
+        GET,
+        INVALID
+    }
 
-        Command(String type, String payload, String cFamilyName) {
+    private static class Command {
+        CommandType type;
+        String payload;
+        String directoryName;
+
+        Command(CommandType type, String payload, String directoryName) {
             this.type = type;
             this.payload = payload;
-            this.cFamilyName = cFamilyName;
+            this.directoryName = directoryName;
         }
     }
 
@@ -38,37 +45,44 @@ public class QueryHandler {
 
         // Extract type
         int spaceIndex = trimmed.indexOf(' ');
-        String type;
+        String typeString;
         String rest;
 
         if (spaceIndex == -1) {
-            type = trimmed.toUpperCase();
+            typeString = trimmed.toUpperCase();
             rest = "";
         } else {
-            type = trimmed.substring(0, spaceIndex).toUpperCase();
+            typeString = trimmed.substring(0, spaceIndex).toUpperCase();
             rest = trimmed.substring(spaceIndex + 1).trim();
         }
-        String cFamilyName = null;
+
+        CommandType type;
+        try {
+            type = CommandType.valueOf(typeString);
+        } catch (IllegalArgumentException e) {
+            type = CommandType.INVALID;
+        }
+
+        String directoryName = null;
         String payload = rest;
 
         int inIndex = rest.lastIndexOf(" IN ");
         if (inIndex != -1) {
             payload = rest.substring(0, inIndex).trim();
-            cFamilyName = rest.substring(inIndex + 4).trim();
+            directoryName = rest.substring(inIndex + 4).trim();
         }
 
-        return new Command(type, payload, cFamilyName);
+        return new Command(type, payload, directoryName);
     }
-
 
     private Message executeMutation(Command cmd) {
         String response;
         switch (cmd.type) {
-            case "PUT":
-                response = put(cmd.payload, cmd.cFamilyName);
+            case PUT:
+                response = put(cmd.payload, cmd.directoryName);
                 break;
-            case "DELETE":
-                response = delete(cmd.payload, cmd.cFamilyName);
+            case DELETE:
+                response = delete(cmd.payload, cmd.directoryName);
                 break;
             default:
                 response = "INVALID QUERY";
@@ -76,19 +90,19 @@ public class QueryHandler {
         return Message.valueOf(response);
     }
 
-
     private Message executeQuery(Command cmd) {
         String response;
-        if (cmd.type.equals("GET")) {
-            response = get(cmd.payload, cmd.cFamilyName);
-        } else {
-            response = "INVALID QUERY";
+        switch (cmd.type) {
+            case GET:
+                response = get(cmd.payload, cmd.directoryName);
+                break;
+            default:
+                response = "INVALID QUERY";
         }
         return Message.valueOf(response);
     }
 
-
-    private String put(String payload, String cFamilyName) {
+    private String put(String payload, String directoryName) {
         String[] parts = payload.split("=", 2);
         if (parts.length != 2)
             return "ERROR INVALID MESSAGE";
@@ -96,30 +110,30 @@ public class QueryHandler {
         String key = parts[0];
         String value = parts[1];
 
-        if (cFamilyName == null)
+        if (directoryName == null)
             keyValStore.put(key.getBytes(), value.getBytes());
         else
-            keyValStore.put(key.getBytes(), value.getBytes(), cFamilyName);
+            keyValStore.put(key.getBytes(), value.getBytes(), directoryName);
 
         return "OK ENTRY ADDED";
     }
 
-    private String delete(String key, String cFamilyName) {
-        if (cFamilyName == null)
+    private String delete(String key, String directoryName) {
+        if (directoryName == null)
             keyValStore.delete(key.getBytes());
         else
-            keyValStore.delete(key.getBytes(), cFamilyName);
+            keyValStore.delete(key.getBytes(), directoryName);
 
         return "OK";
     }
 
-    private String get(String key, String cFamilyName) {
+    private String get(String key, String directoryName) {
         byte[] val;
 
-        if (cFamilyName == null)
+        if (directoryName == null)
             val = keyValStore.get(key.getBytes());
         else
-            val = keyValStore.get(key.getBytes(), cFamilyName);
+            val = keyValStore.get(key.getBytes(), directoryName);
 
         if (val == null)
             return "__NOT_FOUND__";

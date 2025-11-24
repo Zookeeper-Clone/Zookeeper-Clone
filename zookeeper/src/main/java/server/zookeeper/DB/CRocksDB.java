@@ -11,6 +11,8 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import server.zookeeper.util.EnvUtils;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -29,15 +31,16 @@ public class CRocksDB implements DataBase, Closeable {
     private static RocksDB db;
     private HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
     private Options options;
-
+    private String DBPath;
     @SuppressWarnings("resource")
     private CRocksDB() {
         RocksDB.loadLibrary();
         try {
-            RocksDB.destroyDB("/RocksDB", new Options());
+            DBPath = EnvUtils.getRequiredEnv("DB_PATH"); 
+            RocksDB.destroyDB(DBPath, new Options());
             options = new Options()
                     .setCreateIfMissing(true);
-            db = RocksDB.open(options, "/RocksDB");
+            db = RocksDB.open(options, DBPath);
         } catch (RocksDBException e) {
             throw new RuntimeException("Error opening the DataBase", e);
         }
@@ -66,7 +69,15 @@ public class CRocksDB implements DataBase, Closeable {
             throw new RuntimeException("Error creating Column Family", e);
         }
     }
-
+    private ColumnFamilyHandle getColumnFamilyHandle(String columnName){
+        if(cfHandles.containsKey(columnName)){
+            return cfHandles.get(columnName);
+        }else{
+            ColumnFamilyHandle newHandle = createColumnFamily(columnName);
+            cfHandles.put(columnName, newHandle);
+            return newHandle;
+        }
+    }
     @Override
     public byte[] get(byte[] key) {
         try {
@@ -80,14 +91,8 @@ public class CRocksDB implements DataBase, Closeable {
     @Override
     public byte[] get(byte[] key, String cFamilyName) {
         try {
-            if (cfHandles.containsKey(cFamilyName)) {
-                ColumnFamilyHandle handle = cfHandles.get(cFamilyName);
-                return db.get(handle, key);
-            } else {
-                ColumnFamilyHandle handle = createColumnFamily(cFamilyName);
-                return db.get(handle, key);
-            }
-
+            ColumnFamilyHandle cFamilyHandle = getColumnFamilyHandle(cFamilyName);
+            return db.get(cFamilyHandle,key);
         } catch (Exception e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
             throw new RuntimeException(String.format("Error while retrieving value for key %s", keyString), e);
@@ -107,13 +112,8 @@ public class CRocksDB implements DataBase, Closeable {
     @Override
     public void put(byte[] key, byte[] val, String cFamilyName) {
         try {
-            if (cfHandles.containsKey(cFamilyName)) {
-                ColumnFamilyHandle handle = cfHandles.get(cFamilyName);
-                db.put(handle, key, val);
-            } else {
-                ColumnFamilyHandle handle = createColumnFamily(cFamilyName);
-                db.put(handle, key, val);
-            }
+            ColumnFamilyHandle cFamilyHandle = getColumnFamilyHandle(cFamilyName);
+            db.put(cFamilyHandle,key,val);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
             throw new RuntimeException(String.format("Error while inserting key %s", keyString), e);
@@ -133,13 +133,8 @@ public class CRocksDB implements DataBase, Closeable {
     @Override
     public void delete(byte[] key, String cFamilyName) {
         try {
-            if (cfHandles.containsKey(cFamilyName)) {
-                ColumnFamilyHandle handle = cfHandles.get(cFamilyName);
-                db.delete(handle, key);
-            } else {
-                ColumnFamilyHandle handle = createColumnFamily(cFamilyName);
-                db.delete(handle, key);
-            }
+            ColumnFamilyHandle cFamilyHandle = getColumnFamilyHandle(cFamilyName);
+            db.delete(cFamilyHandle,key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
             throw new RuntimeException(String.format("Error while deleting key %s", keyString), e);
@@ -148,7 +143,9 @@ public class CRocksDB implements DataBase, Closeable {
 
     @Override
     public void close() throws IOException {
-        for (ColumnFamilyHandle cFamilyHandle : cfHandles.values()) {
+        for (String cFname : cfHandles.keySet()) {
+            ColumnFamilyHandle cFamilyHandle = cfHandles.get(cFname);
+            cfHandles.remove(cFname);
             cFamilyHandle.close();
         }
         db.close();
