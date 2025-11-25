@@ -38,19 +38,24 @@ public class ZookeeperClient {
     public String read(String key) {
         return sendMessage("GET " + key, false);
     }
+
     public String read(String key, String directory){
         return sendMessage("GET " + key+" IN "+directory, false);
     }
+
     public String write(String key, String value) {
         return sendMessage("PUT " + key + "=" + value, false);
     }
+
     public String write(String key , String value, String directory){
         return sendMessage("PUT " + key + "=" + value + " IN " + directory, false);
     }
+
     public boolean delete(String key) {
         String result = sendMessage("DELETE " + key, false);
         return "OK ENTRY DELETED".equals(result);
     }
+
     public boolean delete(String key, String directory){
         String result = sendMessage("DELETE " + key+" IN "+directory, false);
         return "OK ENTRY DELETED".equals(result);
