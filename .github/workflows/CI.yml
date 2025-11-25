@@ -27,7 +27,14 @@ jobs:
         working-directory: zookeeper
         run: docker compose up -d --build
 
+      #TODO: Add a wait step to ensure services are up before running tests
 
       - name: Build and run Client tests
         working-directory: client
         run: mvn -B clean test
+
+
+      - name: Cleanup
+        if: always()
+        working-directory: ./zookeeper
+        run: docker compose down
