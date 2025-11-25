@@ -10,6 +10,7 @@ services:
       PORT: "6001"
       CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
       SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
     ports:
       - "6001:6001"
 
@@ -22,6 +23,7 @@ services:
       PORT: "6002"
       CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
       SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
     ports:
       - "6002:6002"
 
@@ -34,6 +36,7 @@ services:
       PORT: "6003"
       CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
       SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
     ports:
       - "6003:6003"
 
@@ -46,6 +49,7 @@ services:
       PORT: "6004"
       CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
       SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
     ports:
       - "6004:6004"
 
@@ -58,5 +62,6 @@ services:
       PORT: "6005"
       CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
       SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
     ports:
       - "6005:6005"

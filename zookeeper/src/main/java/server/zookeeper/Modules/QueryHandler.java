@@ -2,23 +2,32 @@ package server.zookeeper.Modules;
 
 import java.nio.charset.StandardCharsets;
 import org.apache.ratis.protocol.Message;
-import server.zookeeper.DB.CRocksDB;
 import server.zookeeper.DB.DataBase;
 
 public class QueryHandler {
     private final DataBase keyValStore;
+    private final String INVALID_QUERY = "INVALID QUERY";
 
     public QueryHandler(DataBase keyValStore) {
         this.keyValStore = keyValStore;
     }
 
-    private static class Command {
-        String type;
-        String payload;
+    private enum CommandType {
+        PUT,
+        DELETE,
+        GET,
+        INVALID
+    }
 
-        Command(String type, String payload) {
+    private static class Command {
+        CommandType type;
+        String payload;
+        String directoryName;
+
+        Command(CommandType type, String payload, String directoryName) {
             this.type = type;
             this.payload = payload;
+            this.directoryName = directoryName;
         }
     }
 
@@ -34,64 +43,102 @@ public class QueryHandler {
 
     private Command parseCommand(String query) {
         String trimmed = query.trim();
+
+        // Extract type
         int spaceIndex = trimmed.indexOf(' ');
+        String typeString;
+        String rest;
 
         if (spaceIndex == -1) {
-            return new Command(trimmed.toUpperCase(), "");
+            typeString = trimmed.toUpperCase();
+            rest = "";
+        } else {
+            typeString = trimmed.substring(0, spaceIndex).toUpperCase();
+            rest = trimmed.substring(spaceIndex + 1).trim();
         }
 
-        String type = trimmed.substring(0, spaceIndex).toUpperCase();
-        String payload = trimmed.substring(spaceIndex + 1).trim();
+        CommandType type;
+        try {
+            type = CommandType.valueOf(typeString);
+        } catch (IllegalArgumentException e) {
+            type = CommandType.INVALID;
+        }
 
-        return new Command(type, payload);
+        String directoryName = null;
+        String payload = rest;
+
+        int inIndex = rest.lastIndexOf(" IN ");
+        if (inIndex != -1) {
+            payload = rest.substring(0, inIndex).trim();
+            directoryName = rest.substring(inIndex + 4).trim();
+        }
+
+        return new Command(type, payload, directoryName);
     }
 
-    private Message executeMutation(Command command) {
+    private Message executeMutation(Command cmd) {
         String response;
-        switch (command.type) {
-            case "PUT":
-                response = put(command.payload);
+        switch (cmd.type) {
+            case PUT:
+                response = put(cmd.payload, cmd.directoryName);
                 break;
-            case "DELETE":
-                response = delete(command.payload);
+            case DELETE:
+                response = delete(cmd.payload, cmd.directoryName);
                 break;
             default:
-                response = "INVALID QUERY";
+                response = INVALID_QUERY;
         }
         return Message.valueOf(response);
     }
 
-    private Message executeQuery(Command command) {
+    private Message executeQuery(Command cmd) {
         String response;
-        if (command.type.equals("GET")) {
-            response = get(command.payload);
-        } else {
-            response = "INVALID QUERY";
+        switch (cmd.type) {
+            case GET:
+                response = get(cmd.payload, cmd.directoryName);
+                break;
+            default:
+                response = INVALID_QUERY;
         }
         return Message.valueOf(response);
     }
 
-    private String put(String payload) {
+    private String put(String payload, String directoryName) {
         String[] parts = payload.split("=", 2);
         if (parts.length != 2)
             return "ERROR INVALID MESSAGE";
 
         String key = parts[0];
         String value = parts[1];
-        keyValStore.put(key.getBytes(), value.getBytes());
+
+        if (directoryName == null)
+            keyValStore.put(key.getBytes(), value.getBytes());
+        else
+            keyValStore.put(key.getBytes(), value.getBytes(), directoryName);
+
         return "OK ENTRY ADDED";
     }
 
-    private String delete(String key) {
-        keyValStore.delete(key.getBytes());
-        return "OK"; // no need to know if it exists before or not
+    private String delete(String key, String directoryName) {
+        if (directoryName == null)
+            keyValStore.delete(key.getBytes());
+        else
+            keyValStore.delete(key.getBytes(), directoryName);
+
+        return "OK";
     }
 
-    private String get(String key) {
-        byte[] val = keyValStore.get(key.getBytes());
-        if (val == null) {
+    private String get(String key, String directoryName) {
+        byte[] val;
+
+        if (directoryName == null)
+            val = keyValStore.get(key.getBytes());
+        else
+            val = keyValStore.get(key.getBytes(), directoryName);
+
+        if (val == null)
             return "__NOT_FOUND__";
-        }
+
         return new String(val, StandardCharsets.UTF_8);
     }
 }
