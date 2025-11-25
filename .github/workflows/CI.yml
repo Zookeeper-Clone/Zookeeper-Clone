@@ -11,18 +11,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Java 11
+      - name: Set up Java 11 && Maven Cache
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
-
-
-      - name: Set up Maven
-        uses: stCarolas/setup-maven@v4.5
-        with:
-          maven-version: 3.8.6
-
+          cache: 'maven'
 
       - name: Build Server JAR
         working-directory: zookeeper
