@@ -1,4 +1,4 @@
-package server.zookeeper.Modules;
+package server.zookeeper.modules;
 
 import java.nio.charset.StandardCharsets;
 import org.apache.ratis.protocol.Message;

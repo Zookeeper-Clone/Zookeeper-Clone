@@ -7,7 +7,7 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 
-import server.zookeeper.Modules.RatisServer;
+import server.zookeeper.ratis.RatisServer;
 import server.zookeeper.util.EnvUtils;
 
 public class Main {
