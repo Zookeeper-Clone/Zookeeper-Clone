@@ -32,3 +32,8 @@ jobs:
       - name: Build and start services
         working-directory: zookeeper
         run: docker compose up -d --build
+
+
+      - name: Build and run Client tests
+        working-directory: client
+        run: mvn -B clean test
