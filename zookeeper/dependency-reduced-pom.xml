@@ -5,7 +5,30 @@
   <artifactId>zookeeper</artifactId>
   <version>1.0-SNAPSHOT</version>
   <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
     <plugins>
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>compile</goal>
+              <goal>test-compile</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+        </configuration>
+      </plugin>
       <plugin>
         <artifactId>maven-shade-plugin</artifactId>
         <version>3.4.1</version>
@@ -32,6 +55,7 @@
   <properties>
     <maven.compiler.target>11</maven.compiler.target>
     <maven.compiler.source>11</maven.compiler.source>
+    <protobuf.version>3.25.0</protobuf.version>
     <ratis.version>3.1.1</ratis.version>
   </properties>
 </project>

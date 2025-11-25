@@ -16,12 +16,8 @@ import server.zookeeper.util.EnvUtils;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 
-import javax.management.RuntimeErrorException;
 
 @SuppressWarnings("unused")
 public class CRocksDB implements DataBase, Closeable {
@@ -29,14 +25,13 @@ public class CRocksDB implements DataBase, Closeable {
     // private static final Logger LOG = LoggerFactory.getLogger(CRocksDB.class);
     private static volatile CRocksDB instance = null;
     private static RocksDB db;
-    private HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
-    private Options options;
-    private String DBPath;
-    @SuppressWarnings("resource")
+    private final HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
+    private final Options options;
+
     private CRocksDB() {
         RocksDB.loadLibrary();
         try {
-            DBPath = EnvUtils.getRequiredEnv("DB_PATH"); 
+            String DBPath = EnvUtils.getRequiredEnv("DB_PATH");
             RocksDB.destroyDB(DBPath, new Options());
             options = new Options()
                     .setCreateIfMissing(true);

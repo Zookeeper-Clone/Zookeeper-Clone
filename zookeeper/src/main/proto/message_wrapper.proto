@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package zookeeper;
+
+option java_package = "server.zookeeper.proto";
+option java_outer_classname = "MessageWrapperProto";
+option java_multiple_files = true;
+
+// Enum to discriminate message types
+enum MessageType {
+  // Unspecified type (default)
+  UNSPECIFIED = 0;
+
+  // Query operations (existing KV operations)
+  QUERY = 1;
+
+  // Authentication operations (login, register, etc.)
+  AUTH = 2;
+}
+
+// Wrapper message to route different message types
+message MessageWrapper {
+  // Type of the message
+  MessageType type = 1;
+
+  // Serialized payload of the actual message
+  // For QUERY: serialized Query message
+  // For AUTH: serialized AuthRequest message
+  bytes payload = 2;
+}
+
+// Generic response wrapper
+message ResponseWrapper {
+  // Whether the operation was successful
+  bool success = 1;
+
+  // Error message if success is false
+  string error_message = 2;
+
+  // Serialized payload of the actual response
+  bytes payload = 3;
+}
