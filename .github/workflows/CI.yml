@@ -22,3 +22,13 @@ jobs:
         uses: stCarolas/setup-maven@v4.5
         with:
           maven-version: 3.8.6
+
+
+      - name: Build Server JAR
+        working-directory: zookeeper
+        run: mvn -B clean package -DskipTests
+
+
+      - name: Build and start services
+        working-directory: zookeeper
+        run: docker compose up -d --build
