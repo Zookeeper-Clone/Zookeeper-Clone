@@ -1,8 +1,9 @@
-package server.zookeeper.Modules;
+package server.zookeeper.modules;
 
 import java.nio.charset.StandardCharsets;
 import org.apache.ratis.protocol.Message;
 import server.zookeeper.DB.DataBase;
+import server.zookeeper.util.ReservedDirectories;
 
 public class QueryHandler {
     private final DataBase keyValStore;
@@ -33,11 +34,21 @@ public class QueryHandler {
 
     public Message handleMutation(String query) {
         Command command = parseCommand(query);
+
+        if (command.directoryName != null && ReservedDirectories.isReserved(command.directoryName)) {
+            String errorMsg = ReservedDirectories.getReservedDirectoryError(command.directoryName);
+            return Message.valueOf(errorMsg);
+        }
         return executeMutation(command);
     }
 
     public Message handleQuery(String query) {
         Command command = parseCommand(query);
+
+        if (command.directoryName != null && ReservedDirectories.isReserved(command.directoryName)) {
+            String errorMsg = ReservedDirectories.getReservedDirectoryError(command.directoryName);
+            return Message.valueOf(errorMsg);
+        }
         return executeQuery(command);
     }
 

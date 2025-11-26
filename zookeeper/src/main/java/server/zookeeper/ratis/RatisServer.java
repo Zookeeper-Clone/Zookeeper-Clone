@@ -1,4 +1,4 @@
-package server.zookeeper.Modules;
+package server.zookeeper.ratis;
 
 import java.io.File;
 import java.io.IOException;
