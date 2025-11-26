@@ -52,11 +52,9 @@ enum AuthOperationType {
   // Change password
   CHANGE_PASSWORD = 4;
 
-//  // Grant permissions to a user (admin only)
-//  GRANT_PERMISSIONS = 5;
-//
-//  // Revoke permissions from a user (admin only)
-//  REVOKE_PERMISSIONS = 6;
+  // Modify permissions of a user (admin only)
+  MODIFY_PERMISSIONS = 5;
+
 //
 //  // Delete a user (admin only)
 //  DELETE_USER = 7;
@@ -78,6 +76,15 @@ message AuthRequest {
 
   // New password (for CHANGE_PASSWORD operation)
   string new_password = 4;
+
+  // Session token (for operations requiring authentication)
+  string session_token = 5;
+
+  // Permissions to set (for MODIFY_PERMISSIONS operation)
+  map<string, int32> permissions = 6;
+
+  // Admin flag (for MODIFY_PERMISSIONS operation)
+  bool is_admin = 7;
 }
 
 // Authentication response message
@@ -90,6 +97,9 @@ message AuthResponse {
 
   // User information (returned on GET_USER_INFO or after registration)
   UserInfo user_info = 4;
+
+  // Session token (returned on successful LOGIN)
+  string session_token = 3;
 
   // List of users (returned on LIST_USERS)
   repeated UserInfo users = 5;

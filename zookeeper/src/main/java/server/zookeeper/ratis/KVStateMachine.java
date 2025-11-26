@@ -5,11 +5,14 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
+import server.zookeeper.DB.AuthRepository;
 import server.zookeeper.DB.DataBase;
+import server.zookeeper.modules.AuthHandler;
 import server.zookeeper.modules.MessageRouter;
 import server.zookeeper.modules.QueryHandler;
 import server.zookeeper.modules.QueryHandlerAdapter;
 import server.zookeeper.proto.MessageType;
+import server.zookeeper.util.PasswordHasher;
 
 public class KVStateMachine extends BaseStateMachine {
 
@@ -19,8 +22,13 @@ public class KVStateMachine extends BaseStateMachine {
         QueryHandler queryHandler = new QueryHandler(keyValStore);
         QueryHandlerAdapter queryAdapter = new QueryHandlerAdapter(queryHandler);
         this.messageRouter = new MessageRouter(queryAdapter);
+
+        AuthRepository authRepository = new AuthRepository(keyValStore);
+        PasswordHasher passwordHasher = PasswordHasher.getInstance();
+        AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher);
+
         messageRouter.registerHandler(MessageType.QUERY, queryAdapter);
-        //TODO: add auth handler and more handlers here in future
+        messageRouter.registerHandler(MessageType.AUTH, authHandler);
         LOG.info("KVStateMachine initialized with MessageRouter");
     }
 

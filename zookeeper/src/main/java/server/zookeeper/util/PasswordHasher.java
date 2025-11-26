@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public final class PasswordHasher {
+public class PasswordHasher {
     private static final Logger LOG = LoggerFactory.getLogger(PasswordHasher.class);
     private static final int DEFAULT_COST_FACTOR = 14;
     private static final int MIN_COST_FACTOR = 4;
