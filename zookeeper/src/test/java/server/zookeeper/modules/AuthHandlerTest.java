@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import server.zookeeper.DB.AuthRepository;
@@ -29,8 +30,10 @@ class AuthHandlerTest {
     private AuthHandler authHandler;
 
     private static final String VALID_EMAIL = "test@example.com";
-    private static final String VALID_PASSWORD = "password123";
-    private static final String HASHED_PASSWORD = "$2a$12$hashed_password";
+    private static final String CURRENT_PASSWORD = "oldPassword123";
+    private static final String NEW_PASSWORD = "newPassword456";
+    private static final String CURRENT_HASH = "$2a$12$current_hash";
+    private static final String NEW_HASH = "$2a$12$new_hash";
 
     @BeforeEach
     void setUp() {
@@ -45,12 +48,12 @@ class AuthHandlerTest {
     @DisplayName("Should successfully register new user")
     void shouldSuccessfullyRegisterNewUser() throws InvalidProtocolBufferException {
         when(authRepository.userExists(VALID_EMAIL)).thenReturn(false);
-        when(passwordHasher.hashPassword(VALID_PASSWORD)).thenReturn(HASHED_PASSWORD);
+        when(passwordHasher.hashPassword(CURRENT_PASSWORD)).thenReturn(CURRENT_HASH);
 
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail(VALID_EMAIL)
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), true);
@@ -63,7 +66,7 @@ class AuthHandlerTest {
         assertFalse(authResponse.getUserInfo().getCanCreateDirectories());
 
         verify(authRepository).userExists(VALID_EMAIL);
-        verify(passwordHasher).hashPassword(VALID_PASSWORD);
+        verify(passwordHasher).hashPassword(CURRENT_PASSWORD);
         verify(authRepository).saveUser(any(UserAuth.class));
     }
 
@@ -75,7 +78,7 @@ class AuthHandlerTest {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail(VALID_EMAIL)
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), true);
@@ -95,7 +98,7 @@ class AuthHandlerTest {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail("invalid-email")
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), true);
@@ -167,18 +170,18 @@ class AuthHandlerTest {
     void shouldSuccessfullyLoginWithValidCredentials() throws InvalidProtocolBufferException {
         UserAuth userAuth = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
-                .setPasswordHash(HASHED_PASSWORD)
+                .setPasswordHash(CURRENT_HASH)
                 .setIsAdmin(false)
                 .setCanCreateDirectories(true)
                 .build();
 
         when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(userAuth));
-        when(passwordHasher.verifyPassword(VALID_PASSWORD, HASHED_PASSWORD)).thenReturn(true);
+        when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(true);
 
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.LOGIN)
                 .setEmail(VALID_EMAIL)
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), false);
@@ -190,7 +193,7 @@ class AuthHandlerTest {
         assertEquals(VALID_EMAIL, authResponse.getUserInfo().getEmail());
 
         verify(authRepository).getUserByEmail(VALID_EMAIL);
-        verify(passwordHasher).verifyPassword(VALID_PASSWORD, HASHED_PASSWORD);
+        verify(passwordHasher).verifyPassword(CURRENT_PASSWORD, CURRENT_HASH);
     }
 
     @Test
@@ -201,7 +204,7 @@ class AuthHandlerTest {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.LOGIN)
                 .setEmail(VALID_EMAIL)
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), false);
@@ -219,16 +222,16 @@ class AuthHandlerTest {
     void shouldFailLoginWithIncorrectPassword() throws InvalidProtocolBufferException {
         UserAuth userAuth = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
-                .setPasswordHash(HASHED_PASSWORD)
+                .setPasswordHash(CURRENT_HASH)
                 .build();
 
         when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(userAuth));
-        when(passwordHasher.verifyPassword(VALID_PASSWORD, HASHED_PASSWORD)).thenReturn(false);
+        when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(false);
 
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.LOGIN)
                 .setEmail(VALID_EMAIL)
-                .setPassword(VALID_PASSWORD)
+                .setPassword(CURRENT_PASSWORD)
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), false);
@@ -237,6 +240,122 @@ class AuthHandlerTest {
         assertFalse(authResponse.getSuccess());
         assertEquals("Invalid email or password", authResponse.getErrorMessage());
 
-        verify(passwordHasher).verifyPassword(VALID_PASSWORD, HASHED_PASSWORD);
+        verify(passwordHasher).verifyPassword(CURRENT_PASSWORD, CURRENT_HASH);
+    }
+
+    @Test
+    @DisplayName("Should successfully change password with valid credentials")
+    void shouldSuccessfullyChangePassword() throws InvalidProtocolBufferException {
+        UserAuth existingUser = UserAuth.newBuilder()
+                .setEmail(VALID_EMAIL)
+                .setPasswordHash(CURRENT_HASH)
+                .setIsAdmin(false)
+                .setCanCreateDirectories(true)
+                .build();
+
+        when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(existingUser));
+        when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(true);
+        when(passwordHasher.verifyPassword(NEW_PASSWORD, CURRENT_HASH)).thenReturn(false);
+        when(passwordHasher.hashPassword(NEW_PASSWORD)).thenReturn(NEW_HASH);
+
+        AuthRequest request = AuthRequest.newBuilder()
+                .setOperation(AuthOperationType.CHANGE_PASSWORD)
+                .setEmail(VALID_EMAIL)
+                .setPassword(CURRENT_PASSWORD)
+                .setNewPassword(NEW_PASSWORD)
+                .build();
+
+        Message response = authHandler.handle(request.toByteArray(), true);
+        AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
+
+        assertTrue(authResponse.getSuccess());
+        assertTrue(authResponse.getErrorMessage().isEmpty());
+        assertEquals(VALID_EMAIL, authResponse.getUserInfo().getEmail());
+
+        ArgumentCaptor<UserAuth> userCaptor = ArgumentCaptor.forClass(UserAuth.class);
+        verify(authRepository).updateUser(userCaptor.capture());
+
+        UserAuth updatedUser = userCaptor.getValue();
+        assertEquals(VALID_EMAIL, updatedUser.getEmail());
+        assertEquals(NEW_HASH, updatedUser.getPasswordHash());
+        assertEquals(existingUser.getIsAdmin(), updatedUser.getIsAdmin());
+        assertEquals(existingUser.getCanCreateDirectories(), updatedUser.getCanCreateDirectories());
+    }
+
+    @Test
+    @DisplayName("Should fail when user does not exist")
+    void shouldFailWhenUserDoesNotExist() throws InvalidProtocolBufferException {
+        when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
+
+        AuthRequest request = AuthRequest.newBuilder()
+                .setOperation(AuthOperationType.CHANGE_PASSWORD)
+                .setEmail(VALID_EMAIL)
+                .setPassword(CURRENT_PASSWORD)
+                .setNewPassword(NEW_PASSWORD)
+                .build();
+
+        Message response = authHandler.handle(request.toByteArray(), true);
+        AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
+
+        assertFalse(authResponse.getSuccess());
+        assertEquals("Invalid credentials", authResponse.getErrorMessage());
+
+        verify(authRepository, never()).updateUser(any());
+    }
+
+    @Test
+    @DisplayName("Should fail when current password is incorrect")
+    void shouldFailWhenCurrentPasswordIsIncorrect() throws InvalidProtocolBufferException {
+        UserAuth existingUser = UserAuth.newBuilder()
+                .setEmail(VALID_EMAIL)
+                .setPasswordHash(CURRENT_HASH)
+                .build();
+
+        when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(existingUser));
+        when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(false);
+
+        AuthRequest request = AuthRequest.newBuilder()
+                .setOperation(AuthOperationType.CHANGE_PASSWORD)
+                .setEmail(VALID_EMAIL)
+                .setPassword(CURRENT_PASSWORD)
+                .setNewPassword(NEW_PASSWORD)
+                .build();
+
+        Message response = authHandler.handle(request.toByteArray(), true);
+        AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
+
+        assertFalse(authResponse.getSuccess());
+        assertEquals("Invalid credentials", authResponse.getErrorMessage());
+
+        verify(authRepository, never()).updateUser(any());
+        verify(passwordHasher, never()).hashPassword(anyString());
+    }
+
+    @Test
+    @DisplayName("Should fail when new password is same as current password")
+    void shouldFailWhenNewPasswordIsSameAsCurrent() throws InvalidProtocolBufferException {
+        UserAuth existingUser = UserAuth.newBuilder()
+                .setEmail(VALID_EMAIL)
+                .setPasswordHash(CURRENT_HASH)
+                .build();
+
+        when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(existingUser));
+        when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(true);
+        when(passwordHasher.verifyPassword(NEW_PASSWORD, CURRENT_HASH)).thenReturn(true);
+
+        AuthRequest request = AuthRequest.newBuilder()
+                .setOperation(AuthOperationType.CHANGE_PASSWORD)
+                .setEmail(VALID_EMAIL)
+                .setPassword(CURRENT_PASSWORD)
+                .setNewPassword(NEW_PASSWORD)
+                .build();
+
+        Message response = authHandler.handle(request.toByteArray(), true);
+        AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
+
+        assertFalse(authResponse.getSuccess());
+        assertTrue(authResponse.getErrorMessage().contains("must be different"));
+
+        verify(authRepository, never()).updateUser(any());
     }
 }

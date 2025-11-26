@@ -166,8 +166,92 @@ public class AuthHandler implements MessageHandler {
 
     private AuthResponse handleChangePassword(AuthRequest request) {
         LOG.debug("Processing CHANGE_PASSWORD request for: {}", EmailUtils.maskEmail(request.getEmail()));
-        // TODO: Implement password change with current password verification
-        return createErrorAuthResponse("Password change not yet implemented");
+
+        try {
+            ValidationResult emailValidation = validateChangePasswordRequest(request);
+            if (!emailValidation.isValid()) {
+                LOG.warn("Password change validation failed: {}", emailValidation.getErrorMessage());
+                return createErrorAuthResponse(emailValidation.getErrorMessage());
+            }
+
+            String email = request.getEmail().trim().toLowerCase();
+
+            Optional<UserAuth> userOptional = authRepository.getUserByEmail(email);
+
+            if (userOptional.isEmpty()) {
+                LOG.warn("Password change failed: User not found: {}", EmailUtils.maskEmail(email));
+                return createErrorAuthResponse("Invalid credentials");
+            }
+
+            UserAuth user = userOptional.get();
+            boolean currentPasswordValid = passwordHasher.verifyPassword(
+                    request.getPassword(),
+                    user.getPasswordHash()
+            );
+            if (!currentPasswordValid) {
+                LOG.warn("Password change failed: Invalid current password for: {}",
+                        EmailUtils.maskEmail(email));
+                return createErrorAuthResponse("Invalid credentials");
+            }
+
+            ValidationResult newPasswordValidation = validatePassword(request.getNewPassword());
+            if (!newPasswordValidation.isValid()) {
+                LOG.warn("Password change failed: New password validation failed: {}",
+                        newPasswordValidation.getErrorMessage());
+                return createErrorAuthResponse("New password invalid: " +
+                        newPasswordValidation.getErrorMessage());
+            }
+
+            boolean samePassword = passwordHasher.verifyPassword(
+                    request.getNewPassword(),
+                    user.getPasswordHash()
+            );
+
+            if (samePassword) {
+                LOG.warn("Password change failed: New password same as current for: {}",
+                        EmailUtils.maskEmail(email));
+                return createErrorAuthResponse("New password must be different from current password");
+            }
+
+            String newPasswordHash = passwordHasher.hashPassword(request.getNewPassword());
+            UserAuth updatedUser = UserAuth.newBuilder()
+                    .setEmail(user.getEmail())
+                    .setPasswordHash(newPasswordHash)
+                    .setIsAdmin(user.getIsAdmin())
+                    .putAllPermissions(user.getPermissionsMap())
+                    .setCanCreateDirectories(user.getCanCreateDirectories())
+                    .build();
+            authRepository.updateUser(updatedUser);
+            LOG.info("Successfully changed password for user: {}", EmailUtils.maskEmail(email));
+
+            UserInfo userInfo = convertToUserInfo(updatedUser);
+            return AuthResponse.newBuilder()
+                    .setSuccess(true)
+                    .setErrorMessage("")
+                    .setUserInfo(userInfo)
+                    .build();
+        } catch (Exception e) {
+            LOG.error("Error during password change", e);
+            return createErrorAuthResponse("Password change failed: " + e.getMessage());
+        }
+    }
+
+    private ValidationResult validateChangePasswordRequest(AuthRequest request) {
+        try {
+            EmailUtils.validateEmail(request.getEmail());
+        } catch (RuntimeException e) {
+            return ValidationResult.failure("Invalid email format");
+        }
+
+        if (request.getPassword() == null || request.getPassword().isEmpty()) {
+            return ValidationResult.failure("Current password is required");
+        }
+
+        if (request.getNewPassword() == null || request.getNewPassword().isEmpty()) {
+            return ValidationResult.failure("New password is required");
+        }
+
+        return ValidationResult.success();
     }
 
     private AuthResponse handleLogin(AuthRequest request) {
