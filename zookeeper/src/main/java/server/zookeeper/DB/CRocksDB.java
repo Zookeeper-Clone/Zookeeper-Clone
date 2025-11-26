@@ -3,25 +3,16 @@ package server.zookeeper.DB;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.DBOptions;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import server.zookeeper.util.EnvUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
-
-import javax.management.RuntimeErrorException;
 
 @SuppressWarnings("unused")
 public class CRocksDB implements DataBase, Closeable {
@@ -46,7 +37,7 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
 
-    public static DataBase getInstance() {
+    public static CRocksDB getInstance() {
         if (null == instance) {
             synchronized (CRocksDB.class) {
                 if (null == instance) {
