@@ -86,4 +86,42 @@ public class IntegrationTest {
         assertEquals("Senior Developer", client.read("employee1", "position"));
     }
 
+    @Test
+    @Order(5)
+    public void testMultipleEntriesWithDirectories() {
+        client.write("product1", "Laptop", "name");
+        client.write("product1", "$1200", "price");
+        client.write("product2", "Mouse", "name");
+        client.write("product2", "$25", "price");
+
+        assertEquals("Laptop", client.read("product1", "name"));
+        assertEquals("$1200", client.read("product1", "price"));
+        assertEquals("Mouse", client.read("product2", "name"));
+        assertEquals("$25", client.read("product2", "price"));
+    }
+
+    @Test
+    @Order(6)
+    public void testDeleteBasicEntry() {
+        client.write("temp", "temporary data");
+        assertEquals("temporary data", client.read("temp"));
+
+        boolean deleteResult = client.delete("temp");
+
+        String readAfterDelete = client.read("temp");
+        assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
+    }
+
+    @Test
+    @Order(7)
+    public void testDeleteEntryWithDirectory() {
+        client.write("session1", "active", "status");
+        assertEquals("active", client.read("session1", "status"));
+
+        boolean deleteResult = client.delete("session1", "status");
+
+        String readAfterDelete = client.read("session1", "status");
+        assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
+    }
+
 }
