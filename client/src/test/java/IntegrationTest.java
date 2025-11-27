@@ -124,4 +124,137 @@ public class IntegrationTest {
         assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
     }
 
+    @Test
+    @Order(8)
+    public void testReadNonExistentKey() {
+        String result = client.read("nonexistent_key");
+        assertEquals("__NOT_FOUND__", result, "Non-existent key should return __NOT_FOUND__");
+    }
+
+    @Test
+    @Order(9)
+    public void testReadNonExistentDirectory() {
+        String result = client.read("some_key", "nonexistent_directory");
+        assertEquals("__NOT_FOUND__", result, "Non-existent directory should return __NOT_FOUND__");
+    }
+
+    @Test
+    @Order(10)
+    public void testComplexScenario() {
+        client.write("app_config", "production", "environment");
+        client.write("app_config", "true", "debug_mode");
+        client.write("app_config", "INFO", "log_level");
+
+        assertEquals("production", client.read("app_config", "environment"));
+        assertEquals("true", client.read("app_config", "debug_mode"));
+        assertEquals("INFO", client.read("app_config", "log_level"));
+
+        client.write("app_config", "false", "debug_mode");
+        assertEquals("false", client.read("app_config", "debug_mode"));
+
+        client.delete("app_config", "log_level");
+        assertEquals("__NOT_FOUND__", client.read("app_config", "log_level"));
+
+        assertEquals("production", client.read("app_config", "environment"));
+        assertEquals("false", client.read("app_config", "debug_mode"));
+    }
+
+    @Test
+    @Order(11)
+    public void testSpecialCharactersInValues() {
+        client.write("message", "Hello, World! @#$%^&*()");
+        assertEquals("Hello, World! @#$%^&*()", client.read("message"));
+
+        client.write("json_like", "{\"key\":\"value\"}");
+        assertEquals("{\"key\":\"value\"}", client.read("json_like"));
+    }
+
+    @Test
+    @Order(12)
+    public void testLargeValueStorage() {
+        StringBuilder largeValue = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            largeValue.append("This is line ").append(i).append(".");
+        }
+
+        String value = largeValue.toString();
+        client.write("large_data", value);
+        assertEquals(value, client.read("large_data"));
+    }
+
+    @Test
+    @Order(13)
+    public void testSequentialOperations() {
+        String key = "counter";
+
+        client.write(key, "0");
+        assertEquals("0", client.read(key));
+
+        client.write(key, "1");
+        assertEquals("1", client.read(key));
+
+        client.write(key, "2");
+        assertEquals("2", client.read(key));
+
+        client.write(key, "3");
+        assertEquals("3", client.read(key));
+    }
+
+    @Test
+    @Order(14)
+    public void testMixedBasicAndDirectoryOperations() {
+        String key = "mixed_key";
+
+        client.write(key, "base_value");
+        assertEquals("base_value", client.read(key));
+
+        client.write(key, "dir_value1", "dir1");
+        client.write(key, "dir_value2", "dir2");
+
+        assertEquals("base_value", client.read(key));
+        assertEquals("dir_value1", client.read(key, "dir1"));
+        assertEquals("dir_value2", client.read(key, "dir2"));
+    }
+
+
+    @Test
+    @Order(15)
+    public void testDeleteAndRewrite() {
+        String key = "rewritable";
+
+        client.write(key, "first_value");
+        assertEquals("first_value", client.read(key));
+
+        client.delete(key);
+        assertEquals("__NOT_FOUND__", client.read(key));
+
+        client.write(key, "second_value");
+        assertEquals("second_value", client.read(key));
+    }
+
+    @Test
+    @Order(16)
+    public void testMultipleDirectoriesPerKey() {
+        String key = "user_profile";
+
+        client.write(key, "Csed", "firstname");
+        client.write(key, "Doe", "lastname");
+        client.write(key, "csed@zookeeper.com", "email");
+        client.write(key, "30", "age");
+        client.write(key, "New York", "city");
+
+        assertEquals("Csed", client.read(key, "firstname"));
+        assertEquals("Doe", client.read(key, "lastname"));
+        assertEquals("csed@zookeeper.com", client.read(key, "email"));
+        assertEquals("30", client.read(key, "age"));
+        assertEquals("New York", client.read(key, "city"));
+    }
+
+    @Test
+    @Order(17)
+    public void testReadAll() {
+        String allEntries = client.readAll();
+        assertNotNull(allEntries, "ReadAll should return a non-null result");
+        assertFalse(allEntries.equals("ERROR"), "ReadAll should not return ERROR");
+    }
 }
