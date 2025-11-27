@@ -18,6 +18,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 
 @SuppressWarnings("unused")
@@ -156,12 +158,22 @@ public class CRocksDB implements DataBase, Closeable {
 
     @Override
     public void close() throws IOException {
-        for (String cFname : cfHandles.keySet()) {
-            ColumnFamilyHandle cFamilyHandle = cfHandles.get(cFname);
-            cfHandles.remove(cFname);
-            cFamilyHandle.close();
+        Iterator<Map.Entry<String, ColumnFamilyHandle>> it = cfHandles.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, ColumnFamilyHandle> entry = it.next();
+            ColumnFamilyHandle handle = entry.getValue();
+            if (handle != null) {
+                handle.close();
+            }
+            it.remove();
         }
-        db.close();
-        options.close();
+
+        if (db != null) {
+            db.close();
+            db = null;
+        }
+        if (options != null) {
+            options.close();
+        }
     }
 }
