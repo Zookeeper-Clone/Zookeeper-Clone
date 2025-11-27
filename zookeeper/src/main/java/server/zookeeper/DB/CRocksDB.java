@@ -3,11 +3,10 @@ package server.zookeeper.DB;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.DBOptions;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
-
+import org.rocksdb.Checkpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,8 +14,10 @@ import server.zookeeper.util.EnvUtils;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -30,11 +31,12 @@ public class CRocksDB implements DataBase, Closeable {
     private static RocksDB db;
     private final HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
     private final Options options;
+    private final String DBPath;
 
     private CRocksDB() {
         RocksDB.loadLibrary();
         try {
-            String DBPath = EnvUtils.getRequiredEnv("DB_PATH");
+            DBPath = EnvUtils.getRequiredEnv("DB_PATH");
             RocksDB.destroyDB(DBPath, new Options());
             options = new Options()
                     .setCreateIfMissing(true);
@@ -157,7 +159,78 @@ public class CRocksDB implements DataBase, Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void takeSnapshot(String path) {
+        try (Checkpoint cp = Checkpoint.create(db)) {
+            cp.createCheckpoint(path);
+        } catch (RocksDBException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public synchronized void loadSnapshot(String snapshotAbsPath) {
+        try {
+            for (ColumnFamilyHandle h : cfHandles.values()) {
+                h.close();
+            }
+            cfHandles.clear();
+            db.close();
+
+            Path dbPath = Path.of(DBPath);
+            if (Files.exists(dbPath)) {
+                try (var walk = Files.walk(dbPath)) {
+                    walk.sorted(java.util.Comparator.reverseOrder())
+                            .forEach(p -> {
+                                try {
+                                    Files.delete(p);
+                                } catch (Exception e) {
+                                    throw new RuntimeException("Failed to delete DB directory contents", e);
+                                }
+                            });
+                }
+            }
+
+            Path snapshotPath = Path.of(snapshotAbsPath);
+            if (!Files.isDirectory(snapshotPath)) {
+                throw new IllegalArgumentException("Snapshot path is not a directory: " + snapshotAbsPath);
+            }
+
+            Files.createDirectories(dbPath);
+
+            try (var walk = Files.walk(snapshotPath)) {
+                walk.forEach(src -> {
+                    try {
+                        Path dest = dbPath.resolve(snapshotPath.relativize(src));
+                        if (Files.isDirectory(src)) {
+                            Files.createDirectories(dest);
+                        } else {
+                            Files.copy(src, dest,
+                                    StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to copy snapshot file", e);
+                    }
+                });
+            }
+
+            db = RocksDB.open(options, DBPath);
+
+            // Reload column families
+            var cfNames = RocksDB.listColumnFamilies(new Options(), DBPath);
+            for (byte[] nameBytes : cfNames) {
+                String cfName = new String(nameBytes, StandardCharsets.UTF_8);
+                ColumnFamilyHandle handle = db.createColumnFamily(
+                        new ColumnFamilyDescriptor(nameBytes, new ColumnFamilyOptions()));
+                cfHandles.put(cfName, handle);
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load snapshot", e);
+        }
+    }
+
+    @Override
+    public void close() {
         Iterator<Map.Entry<String, ColumnFamilyHandle>> it = cfHandles.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, ColumnFamilyHandle> entry = it.next();
