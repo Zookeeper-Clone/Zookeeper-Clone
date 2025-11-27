@@ -12,38 +12,51 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import server.zookeeper.util.EnvUtils;
+import server.zookeeper.util.ReservedDirectories;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 
-import javax.management.RuntimeErrorException;
 
 @SuppressWarnings("unused")
 public class CRocksDB implements DataBase, Closeable {
 
-    // private static final Logger LOG = LoggerFactory.getLogger(CRocksDB.class);
+     private static final Logger LOG = LoggerFactory.getLogger(CRocksDB.class);
     private static volatile CRocksDB instance = null;
     private static RocksDB db;
-    private HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
-    private Options options;
-    private String DBPath;
-    @SuppressWarnings("resource")
+    private final HashMap<String, ColumnFamilyHandle> cfHandles = new HashMap<>();
+    private final Options options;
+
     private CRocksDB() {
         RocksDB.loadLibrary();
         try {
-            DBPath = EnvUtils.getRequiredEnv("DB_PATH"); 
+            String DBPath = EnvUtils.getRequiredEnv("DB_PATH");
             RocksDB.destroyDB(DBPath, new Options());
             options = new Options()
                     .setCreateIfMissing(true);
             db = RocksDB.open(options, DBPath);
+            initializeReservedDirectories();
         } catch (RocksDBException e) {
             throw new RuntimeException("Error opening the DataBase", e);
         }
+    }
+
+    private void initializeReservedDirectories() {
+        LOG.info("Initializing system-reserved directories...");
+
+        for (String reservedDir : ReservedDirectories.getReservedDirectories()) {
+            try {
+                createColumnFamily(reservedDir);
+                LOG.info("Initialized reserved directory: {}", reservedDir);
+            } catch (Exception e) {
+                LOG.error("Failed to initialize reserved directory: {}", reservedDir, e);
+                throw new RuntimeException("Failed to initialize system directories", e);
+            }
+        }
+
+        LOG.info("System-reserved directories initialized successfully");
     }
 
     public static DataBase getInstance() {
