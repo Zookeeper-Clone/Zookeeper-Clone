@@ -20,7 +20,7 @@ jobs:
 
       - name: Build and run Client tests
         working-directory: client
-        run: mvn -B clean test
+        run: mvn -B clean test -Dtest=TestStore
 
   server-unit-tests:
       runs-on: ubuntu-latest
@@ -66,9 +66,10 @@ jobs:
 
       #TODO: Add a wait step to ensure services are up before running tests
 
-      - name: Build Integration Tests
+      - name: Run Integration Tests
         working-directory: client
-        run: mvn -B clean test -DskipUnitTests -Pintegration-tests
+        #TODO: Use MVN profiles instead of running specific test class
+        run: mvn -B clean test -Dtest=IntegrationTest
 
 
       - name: Cleanup
