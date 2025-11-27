@@ -3,11 +3,10 @@ package server.zookeeper.DB;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.DBOptions;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
-
+import org.rocksdb.Checkpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +14,6 @@ import server.zookeeper.util.EnvUtils;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -232,7 +230,7 @@ public class CRocksDB implements DataBase, Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         Iterator<Map.Entry<String, ColumnFamilyHandle>> it = cfHandles.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, ColumnFamilyHandle> entry = it.next();
