@@ -74,8 +74,6 @@ jobs:
             echo "✓ Port $port is ready"
           done
 
-      #TODO: Add a wait step to ensure services are up before running tests
-
       - name: Run Integration Tests
         working-directory: client
         #TODO: Use MVN profiles instead of running specific test class
