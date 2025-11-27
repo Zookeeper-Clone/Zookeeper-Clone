@@ -247,4 +247,71 @@ class AuthRepositoryTest {
                 .setCanCreateDirectories(false)
                 .build();
     }
+    @Nested
+    @DisplayName("Save OAuth User Tests")
+    class SaveOAuthUserTests {
+
+        @Test
+        @DisplayName("Should save OAuth user successfully without password hash")
+        void saveOAuthUser_withValidUser_succeeds() {
+            // OAuth users typically have a token but NO password hash
+            UserAuth oauthUser = UserAuth.newBuilder()
+                    .setEmail("oauth@example.com")
+                    .setGoogleToken("valid_google_token_123")
+                    .setIsAdmin(false)
+                    .setCanCreateDirectories(false)
+                    .build();
+
+            authRepository.saveOAuthUser(oauthUser);
+
+            // Verify it calls the database put method specifically
+            verify(mockDatabase, times(1)).put(
+                    any(byte[].class), // Key (email bytes)
+                    any(byte[].class), // Value (user bytes)
+                    eq(ReservedDirectories.AUTH_DIRECTORY)
+            );
+        }
+
+        @Test
+        @DisplayName("Should save OAuth user with existing permissions")
+        void saveOAuthUser_withPermissions_succeeds() {
+            Map<String, Integer> permissions = new HashMap<>();
+            permissions.put("shared_folder", 7);
+
+            UserAuth oauthUser = UserAuth.newBuilder()
+                    .setEmail("oauth_admin@example.com")
+                    .setGoogleToken("token_xyz")
+                    .setIsAdmin(true)
+                    .putAllPermissions(permissions)
+                    .build();
+
+            authRepository.saveOAuthUser(oauthUser);
+
+            verify(mockDatabase, times(1)).put(
+                    any(byte[].class),
+                    any(byte[].class),
+                    eq(ReservedDirectories.AUTH_DIRECTORY)
+            );
+        }
+
+        @Test
+        @DisplayName("Should throw RuntimeException when database write fails")
+        void saveOAuthUser_whenDatabaseFails_throwsRuntimeException() {
+            UserAuth oauthUser = UserAuth.newBuilder()
+                    .setEmail("fail@example.com")
+                    .setGoogleToken("token")
+                    .build();
+
+            // Mock database throwing an exception
+            doThrow(new RuntimeException("DB Connection Fail"))
+                    .when(mockDatabase).put(any(), any(), anyString());
+
+            RuntimeException exception = assertThrows(
+                    RuntimeException.class,
+                    () -> authRepository.saveOAuthUser(oauthUser)
+            );
+
+            assertTrue(exception.getMessage().contains("Failed to save user"));
+        }
+    }
 }
