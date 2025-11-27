@@ -65,6 +65,15 @@ jobs:
         working-directory: zookeeper
         run: docker compose up -d --build
 
+
+      - name: Verify Raft servers are listening
+        run: |
+          echo "Checking if Raft servers are ready..."
+          for port in 6001 6002 6003 6004 6005; do
+            timeout 60 bash -c "until nc -z localhost $port; do echo 'Waiting for port $port...'; sleep 2; done"
+            echo "✓ Port $port is ready"
+          done
+
       #TODO: Add a wait step to ensure services are up before running tests
 
       - name: Run Integration Tests
