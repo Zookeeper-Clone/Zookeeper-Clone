@@ -25,8 +25,8 @@ public class RatisServer {
         RaftServerConfigKeys.setStorageDir(properties, Collections.singletonList(storageDir));
         GrpcConfigKeys.Server.setPort(properties, port);
         RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(properties, true);
-        RaftServerConfigKeys.Log.setPurgeUptoSnapshotIndex(properties, true);
-        RaftServerConfigKeys.Log.setPurgePreservationLogNum(properties, 10);
+//        RaftServerConfigKeys.Log.setPurgeUptoSnapshotIndex(properties, true);
+//        RaftServerConfigKeys.Log.setPurgePreservationLogNum(properties, 10);
         LOG.info("auto trigger threshold : {}", autoTriggerThreshold);
         RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(properties, autoTriggerThreshold);
         this.server = RaftServer.newBuilder()
