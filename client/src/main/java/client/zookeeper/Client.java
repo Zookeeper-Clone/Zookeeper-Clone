@@ -2,11 +2,8 @@ package client.zookeeper;
 
 
 import org.apache.ratis.client.RaftClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class Client {
-    private static final Logger LOG = LoggerFactory.getLogger(Client.class);
     public static void main(String[] args) {
         String[] ids ={"n1","n2","n3","n4","n5"};
         int[] ports = {6001,6002,6003,6004,6005};
@@ -16,6 +13,14 @@ public class Client {
                                     .setGroupId(groupId)
                                     .build();
         ZookeeperClient client = new ZookeeperClient(raftClient);
+        for (int i = 0; i < 100; ++i) {
+            System.out.println(client.write(String.format("record%d", i), String.format("value%d", i)));
+//            System.out.println(client.read(String.format("record%d", i)));
+        }
+//       System.out.println(client.write("sabry", "aw3a tktb comment"));
+//       System.out.println(client.write("hutho", "mlk4 d3wa"));
+//       System.out.println(client.write("nasr", "gamed", "column 1"));
+//       System.out.println(client.write("nasr", "gamed awy", "column 2"));
         // TODO: move these to proper E2E tests
 //       System.out.println(client.write("sabry", "aw3a tktb comment"));
 //       System.out.println(client.write("hutho", "mlk4 d3wa"));
