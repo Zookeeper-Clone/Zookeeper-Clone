@@ -23,6 +23,22 @@ public class AuthRepository {
         LOG.info("AuthRepository initialized with column family: {}", AUTH_DIRECTORY);
     }
 
+    public void saveOAuthUser(UserAuth user) {
+        String email = user.getEmail();
+        LOG.debug("Saving user: {}", EmailUtils.maskEmail(email));
+        try {
+            byte[] key = emailToKey(email);
+            byte[] value = user.toByteArray();
+            database.put(key, value, AUTH_DIRECTORY);
+            LOG.info("Successfully saved user: {}", EmailUtils.maskEmail(email));
+        } catch (Exception e) {
+            LOG.error("Failed to save user: {}", EmailUtils.maskEmail(email), e);
+            throw new RuntimeException(
+                    "Failed to save user: " + EmailUtils.maskEmail(email),
+                    e);
+        }
+    }
+
     public void saveUser(UserAuth user) {
         validateUserAuth(user);
         String email = user.getEmail();
@@ -36,8 +52,7 @@ public class AuthRepository {
             LOG.error("Failed to save user: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Failed to save user: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         }
     }
 
@@ -60,14 +75,12 @@ public class AuthRepository {
             LOG.error("Corrupted user data for: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Corrupted user data for: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         } catch (Exception e) {
             LOG.error("Failed to retrieve user: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Failed to retrieve user: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         }
     }
 
@@ -84,8 +97,7 @@ public class AuthRepository {
             LOG.error("Failed to check user existence: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Failed to check user existence: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         }
     }
 
@@ -100,8 +112,7 @@ public class AuthRepository {
             LOG.error("Failed to delete user: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Failed to delete user: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         }
     }
 
@@ -112,8 +123,7 @@ public class AuthRepository {
 
         if (!userExists(email)) {
             throw new RuntimeException(
-                    "Cannot update non-existent user: " + EmailUtils.maskEmail(email)
-            );
+                    "Cannot update non-existent user: " + EmailUtils.maskEmail(email));
         }
 
         try {
@@ -125,8 +135,7 @@ public class AuthRepository {
             LOG.error("Failed to update user: {}", EmailUtils.maskEmail(email), e);
             throw new RuntimeException(
                     "Failed to update user: " + EmailUtils.maskEmail(email),
-                    e
-            );
+                    e);
         }
     }
 
@@ -141,8 +150,6 @@ public class AuthRepository {
             throw new IllegalArgumentException("Password hash cannot be null or empty");
         }
     }
-
-
 
     private byte[] emailToKey(String email) {
         return email.toLowerCase().trim().getBytes(StandardCharsets.UTF_8);

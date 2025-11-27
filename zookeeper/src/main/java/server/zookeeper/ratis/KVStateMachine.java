@@ -1,7 +1,11 @@
 package server.zookeeper.ratis;
 
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
@@ -19,17 +23,29 @@ public class KVStateMachine extends BaseStateMachine {
     private final MessageRouter messageRouter;
 
     public KVStateMachine(DataBase keyValStore) {
-        QueryHandler queryHandler = new QueryHandler(keyValStore);
-        QueryHandlerAdapter queryAdapter = new QueryHandlerAdapter(queryHandler);
-        this.messageRouter = new MessageRouter(queryAdapter);
+        try {
+            QueryHandler queryHandler = new QueryHandler(keyValStore);
+            QueryHandlerAdapter queryAdapter = new QueryHandlerAdapter(queryHandler);
+            this.messageRouter = new MessageRouter(queryAdapter);
 
-        AuthRepository authRepository = new AuthRepository(keyValStore);
-        PasswordHasher passwordHasher = PasswordHasher.getInstance();
-        AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher);
+            AuthRepository authRepository = new AuthRepository(keyValStore);
+            PasswordHasher passwordHasher = PasswordHasher.getInstance();
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    GsonFactory.getDefaultInstance())
+                    .setAudience(Collections.singletonList("407408718192.apps.googleusercontent.com"))
+                    .build();
 
-        messageRouter.registerHandler(MessageType.QUERY, queryAdapter);
-        messageRouter.registerHandler(MessageType.AUTH, authHandler);
-        LOG.info("KVStateMachine initialized with MessageRouter");
+            AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier);
+
+            messageRouter.registerHandler(MessageType.QUERY, queryAdapter);
+            messageRouter.registerHandler(MessageType.AUTH, authHandler);
+            LOG.info("KVStateMachine initialized with MessageRouter");
+        }catch (Exception e){
+            LOG.error("Error initialzing KVStateMachine");
+            throw new RuntimeException("Error initializing state machine");
+        }
+
     }
 
     @Override
