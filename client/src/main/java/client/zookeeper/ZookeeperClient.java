@@ -43,6 +43,21 @@ public class ZookeeperClient {
         return result;
     }
 
+    public AuthenticationResult registerOAuth(String email, String OAuthToken) {
+        AuthRequest authRequest = buildOAuthRequest(AuthOperationType.REGISTER_OAUTH, email, OAuthToken);
+        return sendAuthRequest(authRequest, false);
+    }
+
+    public AuthenticationResult loginOAuth(String email, String OAuthToken) {
+        AuthRequest authRequest = buildOAuthRequest(AuthOperationType.LOGIN_OAUTH, email, OAuthToken);
+        AuthenticationResult result = sendAuthRequest(authRequest, true);
+        if (result.isSuccess() && result.getSessionToken().isPresent()) {
+            this.sessionToken = result.getSessionToken().get();
+            LOG.info("User {} logged in successfully", email);
+        }
+        return result;
+    }
+
     public boolean isAuthenticated() {
         return sessionToken != null && !sessionToken.isEmpty();
     }
@@ -61,6 +76,17 @@ public class ZookeeperClient {
             builder.setSessionToken(sessionToken);
         }
 
+        return builder.build();
+    }
+
+    private AuthRequest buildOAuthRequest(AuthOperationType operation, String email , String OAuthToken){
+        AuthRequest.Builder builder = AuthRequest.newBuilder()
+                .setOperation(operation)
+                .setEmail(email)
+                .setGoogleToken(OAuthToken);
+        if (sessionToken != null){
+            builder.setSessionToken(sessionToken);
+        }
         return builder.build();
     }
 
@@ -99,8 +125,7 @@ public class ZookeeperClient {
             return new AuthenticationResult(
                     authResponse.getSuccess(),
                     authResponse.getErrorMessage(),
-                    authResponse.getSessionToken()
-            );
+                    authResponse.getSessionToken());
 
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse auth response", e);

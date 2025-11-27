@@ -1,5 +1,6 @@
 package server.zookeeper.modules;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.protocol.Message;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +27,8 @@ class AuthHandlerTest {
     private AuthRepository authRepository;
     @Mock
     private PasswordHasher passwordHasher;
-
+    @Mock
+    private GoogleIdTokenVerifier verifier;
     private AuthHandler authHandler;
 
     private static final String VALID_EMAIL = "test@example.com";
@@ -37,7 +39,7 @@ class AuthHandlerTest {
 
     @BeforeEach
     void setUp() {
-        authHandler = new AuthHandler(authRepository, passwordHasher);
+        authHandler = new AuthHandler(authRepository, passwordHasher, verifier);
     }
 
     // ========================================================================

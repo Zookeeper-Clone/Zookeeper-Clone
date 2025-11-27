@@ -19,7 +19,7 @@ RUN jdeps --ignore-missing-deps -q \
 # Build minimal JRE with only required modules
 RUN jlink \
     --verbose \
-    --add-modules $(cat /deps.info) \
+    --add-modules $(cat /deps.info),jdk.crypto.ec,jdk.crypto.cryptoki \
     --strip-debug \
     --no-man-pages \
     --no-header-files \
@@ -30,10 +30,13 @@ RUN jlink \
 FROM alpine:latest
 
 # Install native dependencies required by RocksDB at RUNTIME
-RUN apk add --no-cache \
+# FIX ADDED HERE: Added 'ca-certificates' and 'nss'
+RUN apk add \
     libstdc++ \
     gcompat \
-    libc6-compat
+    libc6-compat \
+    ca-certificates \
+    nss
 
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"

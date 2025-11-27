@@ -28,6 +28,7 @@ message UserAuth {
 
   // Whether user can create new directories/column families
   bool can_create_directories = 5;
+  string google_token = 6;
 }
 
 
@@ -55,12 +56,9 @@ enum AuthOperationType {
   // Modify permissions of a user (admin only)
   MODIFY_PERMISSIONS = 5;
 
-//
-//  // Delete a user (admin only)
-//  DELETE_USER = 7;
-//
-//  // List all users (admin only)
-//  LIST_USERS = 8;
+   REGISTER_OAUTH = 6;
+
+   LOGIN_OAUTH = 7;
 }
 
 // Authentication request message
@@ -85,6 +83,8 @@ message AuthRequest {
 
   // Admin flag (for MODIFY_PERMISSIONS operation)
   bool is_admin = 7;
+
+  string google_token = 8;
 }
 
 // Authentication response message
