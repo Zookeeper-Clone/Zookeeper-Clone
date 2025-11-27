@@ -102,7 +102,7 @@ public class FileListStateMachineStorage implements StateMachineStorage {
 
     @Override
     public FileListSnapshotInfo getLatestSnapshot() {
-        SingleFileSnapshotInfo s = (SingleFileSnapshotInfo)this.latestSnapshot.get();
+        FileListSnapshotInfo s = this.latestSnapshot.get();
         return s != null ? s : this.loadLatestSnapshot();
     }
 
@@ -113,7 +113,6 @@ public class FileListStateMachineStorage implements StateMachineStorage {
         }
 
         try {
-            // 1) Find the latest snapshot directory
             SingleFileSnapshotInfo parentDir = findLatestSnapshot(dir.toPath());
             if (parentDir == null) {
                 return null;

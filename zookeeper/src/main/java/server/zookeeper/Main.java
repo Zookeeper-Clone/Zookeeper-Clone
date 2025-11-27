@@ -7,10 +7,14 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import server.zookeeper.ratis.RatisServer;
 import server.zookeeper.util.EnvUtils;
 
 public class Main {
+
+    static Logger LOG = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
         try {
