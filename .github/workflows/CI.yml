@@ -4,12 +4,49 @@ on:
   pull_request:
 
 jobs:
-  test:
+  client-unit-tests:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11 && Maven Cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+
+      - name: Build and run Client tests
+        working-directory: client
+        run: mvn -B clean test
+
+  server-unit-tests:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Set up Java 11 && Maven Cache
+          uses: actions/setup-java@v4
+          with:
+              distribution: 'temurin'
+              java-version: '11'
+              cache: 'maven'
+
+        - name: Build and run Server tests
+          working-directory: zookeeper
+          run: mvn -B clean test
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [client-unit-tests, server-unit-tests]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Java 11 && Maven Cache
         uses: actions/setup-java@v4
@@ -29,12 +66,14 @@ jobs:
 
       #TODO: Add a wait step to ensure services are up before running tests
 
-      - name: Build and run Client tests
+      - name: Build Integration Tests
         working-directory: client
-        run: mvn -B clean test
+        run: mvn -B clean test -DskipUnitTests -Pintegration-tests
 
 
       - name: Cleanup
         if: always()
-        working-directory: ./zookeeper
+        working-directory: zookeeper
         run: docker compose down
+
+
