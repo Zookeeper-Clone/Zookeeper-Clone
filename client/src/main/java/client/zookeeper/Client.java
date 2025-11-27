@@ -82,7 +82,7 @@ public class Client {
         System.out.println("TEST 3: User Registration");
         System.out.println("-".repeat(80));
 
-        String token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjkzYTkzNThjY2Y5OWYxYmIwNDBiYzYyMjFkNTQ5M2UxZmZkOGFkYTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI0MDc0MDg3MTgxOTIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI0MDc0MDg3MTgxOTIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDAxNDMyMDM3NDU4NjMwNTQ4MTgiLCJlbWFpbCI6ImFiZG9haGxhd3k2MTYxQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiR1F6RkN2SXFLM2ItMUtIVGhQVjNGZyIsImlhdCI6MTc2NDIwMzI3MywiZXhwIjoxNzY0MjA2ODczfQ.Qz8FcTV8xyTcQ7qwf8-cp2gx62OSZuLNCHxRkgrqripjzq6TWdrTuw1uQaliGuMj0igIO4sQcoJ9Fq6Ra3vJqNpgFujKb7TV6Z_M0PTXUuN6NbXKMPb5qNSPGlkz_ZkzY-SfdPBF8tgS0yav7K7j3WIP0kByq8PIGutj6_RyMsCng66JutAc3zrc9UwWGF2FtL824mcesQSlkd7eSzJsowy95cIQCeRzyic8P4ykQEzpi79kJ2r9YsnF0wuGcqM5YFUBt15gss5kcnl9FGzj-YdsfzV4NNWO0kjnSlHSa7rx_ZIaaaQuKZeIogMk5texTni9cUO7qqZuiD8bed0-ww";
+        String token = "";
         String email = "abdoahlawy6161@gmail.com";
         ZookeeperClient.AuthenticationResult registerResult2 = client3.registerOAuth(email,token);
         System.out.println("Register abdoahlawy6161@gmail.com: " + registerResult2);
