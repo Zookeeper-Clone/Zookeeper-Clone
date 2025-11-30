@@ -35,55 +35,55 @@ public class IntegrationTest {
     @Test
     @Order(1)
     public void testBasicWriteAndRead() {
-        String writeResponse = client.write("user1", "John Doe");
+        String writeResponse = client.write("user1", "John Doe").getValue();
         assertEquals("OK ENTRY ADDED", writeResponse, "Write operation should succeed");
 
-        String readResponse = client.read("user1");
+        String readResponse = client.read("user1").getValue();
         assertEquals("John Doe", readResponse, "Read should return the written value");
     }
 
     @Test
     @Order(2)
     public void testMultipleWrites() {
-        String response1 = client.write("user2", "Alice");
-        String response2 = client.write("user3", "Bob");
-        String response3 = client.write("user4", "Charlie");
+        String response1 = client.write("user2", "Alice").getValue();
+        String response2 = client.write("user3", "Bob").getValue();
+        String response3 = client.write("user4", "Charlie").getValue();
 
         assertEquals("OK ENTRY ADDED", response1);
         assertEquals("OK ENTRY ADDED", response2);
         assertEquals("OK ENTRY ADDED", response3);
 
-        assertEquals("Alice", client.read("user2"));
-        assertEquals("Bob", client.read("user3"));
-        assertEquals("Charlie", client.read("user4"));
+        assertEquals("Alice", client.read("user2").getValue());
+        assertEquals("Bob", client.read("user3").getValue());
+        assertEquals("Charlie", client.read("user4").getValue());
     }
 
     @Test
     @Order(3)
     public void testUpdateExistingKey() {
         client.write("config", "version1");
-        assertEquals("version1", client.read("config"));
+        assertEquals("version1", client.read("config").getValue());
 
-        String updateResponse = client.write("config", "version2");
+        String updateResponse = client.write("config", "version2").getValue();
         assertEquals("OK ENTRY ADDED", updateResponse);
 
-        assertEquals("version2", client.read("config"));
+        assertEquals("version2", client.read("config").getValue());
     }
 
     @Test
     @Order(4)
     public void testWriteAndReadWithDirectory() {
-        String response1 = client.write("employee1", "Engineering", "department");
-        String response2 = client.write("employee1", "$80000", "salary");
-        String response3 = client.write("employee1", "Senior Developer", "position");
+        ZookeeperClient.QueryResult response1 = client.write("employee1", "Engineering", "department");
+        ZookeeperClient.QueryResult response2 = client.write("employee1", "$80000", "salary");
+        ZookeeperClient.QueryResult response3 = client.write("employee1", "Senior Developer", "position");
 
-        assertEquals("OK ENTRY ADDED", response1);
-        assertEquals("OK ENTRY ADDED", response2);
-        assertEquals("OK ENTRY ADDED", response3);
+        assertEquals("OK ENTRY ADDED", response1.getValue());
+        assertEquals("OK ENTRY ADDED", response2.getValue());
+        assertEquals("OK ENTRY ADDED", response3.getValue());
 
-        assertEquals("Engineering", client.read("employee1", "department"));
-        assertEquals("$80000", client.read("employee1", "salary"));
-        assertEquals("Senior Developer", client.read("employee1", "position"));
+        assertEquals("Engineering", client.read("employee1", "department").getValue());
+        assertEquals("$80000", client.read("employee1", "salary").getValue());
+        assertEquals("Senior Developer", client.read("employee1", "position").getValue());
     }
 
     @Test
@@ -94,21 +94,21 @@ public class IntegrationTest {
         client.write("product2", "Mouse", "name");
         client.write("product2", "$25", "price");
 
-        assertEquals("Laptop", client.read("product1", "name"));
-        assertEquals("$1200", client.read("product1", "price"));
-        assertEquals("Mouse", client.read("product2", "name"));
-        assertEquals("$25", client.read("product2", "price"));
+        assertEquals("Laptop", client.read("product1", "name").getValue());
+        assertEquals("$1200", client.read("product1", "price").getValue());
+        assertEquals("Mouse", client.read("product2", "name").getValue());
+        assertEquals("$25", client.read("product2", "price").getValue());
     }
 
     @Test
     @Order(6)
     public void testDeleteBasicEntry() {
         client.write("temp", "temporary data");
-        assertEquals("temporary data", client.read("temp"));
+        assertEquals("temporary data", client.read("temp").getValue());
 
-        boolean deleteResult = client.delete("temp");
+        boolean deleteResult = client.delete("temp").isSuccess();
 
-        String readAfterDelete = client.read("temp");
+        String readAfterDelete = client.read("temp").getValue();
         assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
     }
 
@@ -116,25 +116,25 @@ public class IntegrationTest {
     @Order(7)
     public void testDeleteEntryWithDirectory() {
         client.write("session1", "active", "status");
-        assertEquals("active", client.read("session1", "status"));
+        assertEquals("active", client.read("session1", "status").getValue());
 
-        boolean deleteResult = client.delete("session1", "status");
+        boolean deleteResult = client.delete("session1", "status").isSuccess();
 
-        String readAfterDelete = client.read("session1", "status");
+        String readAfterDelete = client.read("session1", "status").getValue();
         assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
     }
 
     @Test
     @Order(8)
     public void testReadNonExistentKey() {
-        String result = client.read("nonexistent_key");
+        String result = client.read("nonexistent_key").getValue();
         assertEquals("__NOT_FOUND__", result, "Non-existent key should return __NOT_FOUND__");
     }
 
     @Test
     @Order(9)
     public void testReadNonExistentDirectory() {
-        String result = client.read("some_key", "nonexistent_directory");
+        String result = client.read("some_key", "nonexistent_directory").getValue();
         assertEquals("__NOT_FOUND__", result, "Non-existent directory should return __NOT_FOUND__");
     }
 
@@ -145,28 +145,28 @@ public class IntegrationTest {
         client.write("app_config", "true", "debug_mode");
         client.write("app_config", "INFO", "log_level");
 
-        assertEquals("production", client.read("app_config", "environment"));
-        assertEquals("true", client.read("app_config", "debug_mode"));
-        assertEquals("INFO", client.read("app_config", "log_level"));
+        assertEquals("production", client.read("app_config", "environment").getValue());
+        assertEquals("true", client.read("app_config", "debug_mode").getValue());
+        assertEquals("INFO", client.read("app_config", "log_level").getValue());
 
         client.write("app_config", "false", "debug_mode");
-        assertEquals("false", client.read("app_config", "debug_mode"));
+        assertEquals("false", client.read("app_config", "debug_mode").getValue());
 
         client.delete("app_config", "log_level");
-        assertEquals("__NOT_FOUND__", client.read("app_config", "log_level"));
+        assertEquals("__NOT_FOUND__", client.read("app_config", "log_level").getValue());
 
-        assertEquals("production", client.read("app_config", "environment"));
-        assertEquals("false", client.read("app_config", "debug_mode"));
+        assertEquals("production", client.read("app_config", "environment").getValue());
+        assertEquals("false", client.read("app_config", "debug_mode").getValue());
     }
 
     @Test
     @Order(11)
     public void testSpecialCharactersInValues() {
         client.write("message", "Hello, World! @#$%^&*()");
-        assertEquals("Hello, World! @#$%^&*()", client.read("message"));
+        assertEquals("Hello, World! @#$%^&*()", client.read("message").getValue());
 
         client.write("json_like", "{\"key\":\"value\"}");
-        assertEquals("{\"key\":\"value\"}", client.read("json_like"));
+        assertEquals("{\"key\":\"value\"}", client.read("json_like").getValue());
     }
 
     @Test
@@ -179,7 +179,7 @@ public class IntegrationTest {
 
         String value = largeValue.toString();
         client.write("large_data", value);
-        assertEquals(value, client.read("large_data"));
+        assertEquals(value, client.read("large_data").getValue());
     }
 
     @Test
@@ -188,16 +188,13 @@ public class IntegrationTest {
         String key = "counter";
 
         client.write(key, "0");
-        assertEquals("0", client.read(key));
-
+        assertEquals("0", client.read(key).getValue());
         client.write(key, "1");
-        assertEquals("1", client.read(key));
-
+        assertEquals("1", client.read(key).getValue());
         client.write(key, "2");
-        assertEquals("2", client.read(key));
-
+        assertEquals("2", client.read(key).getValue());
         client.write(key, "3");
-        assertEquals("3", client.read(key));
+        assertEquals("3", client.read(key).getValue());
     }
 
     @Test
@@ -206,14 +203,14 @@ public class IntegrationTest {
         String key = "mixed_key";
 
         client.write(key, "base_value");
-        assertEquals("base_value", client.read(key));
+        assertEquals("base_value", client.read(key).getValue());
 
         client.write(key, "dir_value1", "dir1");
         client.write(key, "dir_value2", "dir2");
 
-        assertEquals("base_value", client.read(key));
-        assertEquals("dir_value1", client.read(key, "dir1"));
-        assertEquals("dir_value2", client.read(key, "dir2"));
+        assertEquals("base_value", client.read(key).getValue());
+        assertEquals("dir_value1", client.read(key, "dir1").getValue());
+        assertEquals("dir_value2", client.read(key, "dir2").getValue());
     }
 
 
@@ -223,13 +220,13 @@ public class IntegrationTest {
         String key = "rewritable";
 
         client.write(key, "first_value");
-        assertEquals("first_value", client.read(key));
+        assertEquals("first_value", client.read(key).getValue());
 
         client.delete(key);
-        assertEquals("__NOT_FOUND__", client.read(key));
+        assertEquals("__NOT_FOUND__", client.read(key).getValue());
 
         client.write(key, "second_value");
-        assertEquals("second_value", client.read(key));
+        assertEquals("second_value", client.read(key).getValue());
     }
 
     @Test
@@ -243,18 +240,11 @@ public class IntegrationTest {
         client.write(key, "30", "age");
         client.write(key, "New York", "city");
 
-        assertEquals("Csed", client.read(key, "firstname"));
-        assertEquals("Doe", client.read(key, "lastname"));
-        assertEquals("csed@zookeeper.com", client.read(key, "email"));
-        assertEquals("30", client.read(key, "age"));
-        assertEquals("New York", client.read(key, "city"));
+        assertEquals("Csed", client.read(key, "firstname").getValue());
+        assertEquals("Doe", client.read(key, "lastname").getValue());
+        assertEquals("csed@zookeeper.com", client.read(key, "email").getValue());
+        assertEquals("30", client.read(key, "age").getValue());
+        assertEquals("New York", client.read(key, "city").getValue());
     }
 
-    @Test
-    @Order(17)
-    public void testReadAll() {
-        String allEntries = client.readAll();
-        assertNotNull(allEntries, "ReadAll should return a non-null result");
-        assertFalse(allEntries.equals("ERROR"), "ReadAll should not return ERROR");
-    }
 }

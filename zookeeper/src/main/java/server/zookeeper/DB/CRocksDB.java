@@ -14,6 +14,7 @@ import server.zookeeper.util.EnvUtils;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,7 +53,9 @@ public class CRocksDB implements DataBase, Closeable {
 
         for (String reservedDir : ReservedDirectories.getReservedDirectories()) {
             try {
-                createColumnFamily(reservedDir);
+                try (ColumnFamilyHandle f = createColumnFamily(reservedDir);) {
+
+                }
                 LOG.info("Initialized reserved directory: {}", reservedDir);
             } catch (Exception e) {
                 LOG.error("Failed to initialize reserved directory: {}", reservedDir, e);
@@ -64,11 +67,11 @@ public class CRocksDB implements DataBase, Closeable {
     }
 
     public static DataBase getInstance() {
-        if (null == instance) {
-            synchronized (CRocksDB.class) {
-                if (null == instance) {
-                    return instance = new CRocksDB();
-                }
+        if (null != instance) return instance;
+
+        synchronized (CRocksDB.class) {
+            if (null == instance) {
+                return instance = new CRocksDB();
             }
         }
         return instance;
@@ -87,9 +90,16 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
     private ColumnFamilyHandle getColumnFamilyHandle(String columnName){
-        if(cfHandles.containsKey(columnName)){
+        if (ReservedDirectories.isReserved(columnName)) {
+            LOG.error("trying to access reserved directory");
+            throw new IllegalArgumentException(
+                    String.format("Cannot access reserved column family '%s'", columnName)
+            );
+        }
+
+        if (cfHandles.containsKey(columnName)) {
             return cfHandles.get(columnName);
-        }else{
+        } else {
             ColumnFamilyHandle newHandle = createColumnFamily(columnName);
             cfHandles.put(columnName, newHandle);
             return newHandle;
@@ -177,18 +187,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.close();
 
             Path dbPath = Path.of(DBPath);
-            if (Files.exists(dbPath)) {
-                try (var walk = Files.walk(dbPath)) {
-                    walk.sorted(java.util.Comparator.reverseOrder())
-                            .forEach(p -> {
-                                try {
-                                    Files.delete(p);
-                                } catch (Exception e) {
-                                    throw new RuntimeException("Failed to delete DB directory contents", e);
-                                }
-                            });
-                }
-            }
+            walkOverFile(dbPath);
 
             Path snapshotPath = Path.of(snapshotAbsPath);
             if (!Files.isDirectory(snapshotPath)) {
@@ -197,21 +196,7 @@ public class CRocksDB implements DataBase, Closeable {
 
             Files.createDirectories(dbPath);
 
-            try (var walk = Files.walk(snapshotPath)) {
-                walk.forEach(src -> {
-                    try {
-                        Path dest = dbPath.resolve(snapshotPath.relativize(src));
-                        if (Files.isDirectory(src)) {
-                            Files.createDirectories(dest);
-                        } else {
-                            Files.copy(src, dest,
-                                    StandardCopyOption.REPLACE_EXISTING);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to copy snapshot file", e);
-                    }
-                });
-            }
+            tryWalk2(snapshotPath, dbPath);
 
             db = RocksDB.open(options, DBPath);
 
@@ -226,6 +211,39 @@ public class CRocksDB implements DataBase, Closeable {
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to load snapshot", e);
+        }
+    }
+
+    private static void tryWalk2(Path snapshotPath, Path dbPath) throws IOException {
+        try (var walk = Files.walk(snapshotPath)) {
+            walk.forEach(src -> {
+                try {
+                    Path dest = dbPath.resolve(snapshotPath.relativize(src));
+                    if (Files.isDirectory(src)) {
+                        Files.createDirectories(dest);
+                    } else {
+                        Files.copy(src, dest,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to copy snapshot file", e);
+                }
+            });
+        }
+    }
+
+    private static void walkOverFile(Path dbPath) throws IOException {
+        if (Files.exists(dbPath)) {
+            try (var walk = Files.walk(dbPath)) {
+                walk.sorted(java.util.Comparator.reverseOrder())
+                        .forEach(p -> {
+                            try {
+                                Files.delete(p);
+                            } catch (Exception e) {
+                                throw new RuntimeException("Failed to delete DB directory contents", e);
+                            }
+                        });
+            }
         }
     }
 
