@@ -35,6 +35,8 @@ class CRocksDBTest {
         reservedDirectoriesMock = mockStatic(ReservedDirectories.class);
         reservedDirectoriesMock.when(ReservedDirectories::getReservedDirectories)
                 .thenReturn(Set.of("__ZK_SYS_AUTH__"));
+        reservedDirectoriesMock.when(() -> ReservedDirectories.isReserved("__ZK_SYS_AUTH__"))
+                .thenReturn(true);
     }
 
     @AfterEach

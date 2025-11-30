@@ -53,9 +53,7 @@ public class CRocksDB implements DataBase, Closeable {
 
         for (String reservedDir : ReservedDirectories.getReservedDirectories()) {
             try {
-                try (ColumnFamilyHandle f = createColumnFamily(reservedDir);) {
-
-                }
+                createColumnFamily(reservedDir);
                 LOG.info("Initialized reserved directory: {}", reservedDir);
             } catch (Exception e) {
                 LOG.error("Failed to initialize reserved directory: {}", reservedDir, e);
@@ -111,7 +109,7 @@ public class CRocksDB implements DataBase, Closeable {
             return db.get(key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while retrieving value for key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while retrieving value for key %s", keyString), e);
         }
     }
 
@@ -122,7 +120,7 @@ public class CRocksDB implements DataBase, Closeable {
             return db.get(cFamilyHandle,key);
         } catch (Exception e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while retrieving value for key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while retrieving value for key %s", keyString), e);
         }
     }
 
@@ -132,7 +130,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.put(key, val);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while inserting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while inserting key %s", keyString), e);
         }
     }
 
@@ -143,7 +141,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.put(cFamilyHandle,key,val);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while inserting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while inserting key %s", keyString), e);
         }
     }
 
@@ -153,7 +151,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.delete(key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while deleting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while deleting key %s", keyString), e);
         }
     }
 
@@ -164,7 +162,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.delete(cFamilyHandle,key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while deleting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while deleting key %s", keyString), e);
         }
     }
 

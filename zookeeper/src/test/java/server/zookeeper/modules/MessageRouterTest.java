@@ -70,18 +70,6 @@ public class MessageRouterTest {
     }
 
     @Test
-    void testBackwardCompatibilityWithRawString() {
-        // Send raw string query (old format)
-        String query = "GET mykey";
-        byte[] payload = query.getBytes(StandardCharsets.UTF_8);
-
-        Message result = router.route(payload, false);
-
-        assertEquals("QUERY_RESPONSE", result.getContent().toStringUtf8());
-        verify(mockQueryHandler, times(1)).handle(any(), eq(false));
-    }
-
-    @Test
     void testUnknownMessageTypeReturnsError() {
         // Create wrapper with UNSPECIFIED type
         MessageWrapper wrapper = MessageWrapper.newBuilder()

@@ -248,13 +248,7 @@ public class AuthHandler implements MessageHandler {
             }
 
             String newPasswordHash = passwordHasher.hashPassword(request.getNewPassword());
-            UserAuth updatedUser = UserAuth.newBuilder()
-                    .setEmail(user.getEmail())
-                    .setPasswordHash(newPasswordHash)
-                    .setIsAdmin(user.getIsAdmin())
-                    .putAllPermissions(user.getPermissionsMap())
-                    .setCanCreateDirectories(user.getCanCreateDirectories())
-                    .build();
+            UserAuth updatedUser = getUserAuth(user, newPasswordHash);
             authRepository.updateUser(updatedUser);
             LOG.info("Successfully changed password for user: {}", EmailUtils.maskEmail(email));
 
@@ -268,6 +262,16 @@ public class AuthHandler implements MessageHandler {
             LOG.error("Error during password change", e);
             return createErrorAuthResponse("Password change failed: " + e.getMessage());
         }
+    }
+
+    private static UserAuth getUserAuth(UserAuth user, String newPasswordHash) {
+        return UserAuth.newBuilder()
+                .setEmail(user.getEmail())
+                .setPasswordHash(newPasswordHash)
+                .setIsAdmin(user.getIsAdmin())
+                .putAllPermissions(user.getPermissionsMap())
+                .setCanCreateDirectories(user.getCanCreateDirectories())
+                .build();
     }
 
     private ValidationResult validateChangePasswordRequest(AuthRequest request) {
