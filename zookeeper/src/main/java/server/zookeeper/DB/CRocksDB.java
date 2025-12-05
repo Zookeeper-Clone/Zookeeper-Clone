@@ -88,12 +88,6 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
     private ColumnFamilyHandle getColumnFamilyHandle(String columnName){
-        if (ReservedDirectories.isReserved(columnName)) {
-            LOG.error("trying to access reserved directory");
-            throw new IllegalArgumentException(
-                    String.format("Cannot access reserved column family '%s'", columnName)
-            );
-        }
 
         if (cfHandles.containsKey(columnName)) {
             return cfHandles.get(columnName);
@@ -185,7 +179,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.close();
 
             Path dbPath = Path.of(DBPath);
-            walkOverFile(dbPath);
+            cleanUpDBDirectory(dbPath);
 
             Path snapshotPath = Path.of(snapshotAbsPath);
             if (!Files.isDirectory(snapshotPath)) {
@@ -194,7 +188,7 @@ public class CRocksDB implements DataBase, Closeable {
 
             Files.createDirectories(dbPath);
 
-            tryWalk2(snapshotPath, dbPath);
+            copySnapshotContents(snapshotPath, dbPath);
 
             db = RocksDB.open(options, DBPath);
 
@@ -212,7 +206,7 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
 
-    private static void tryWalk2(Path snapshotPath, Path dbPath) throws IOException {
+    private static void copySnapshotContents(Path snapshotPath, Path dbPath) throws IOException {
         try (var walk = Files.walk(snapshotPath)) {
             walk.forEach(src -> {
                 try {
@@ -230,7 +224,7 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
 
-    private static void walkOverFile(Path dbPath) throws IOException {
+    private static void cleanUpDBDirectory(Path dbPath) throws IOException {
         if (Files.exists(dbPath)) {
             try (var walk = Files.walk(dbPath)) {
                 walk.sorted(java.util.Comparator.reverseOrder())

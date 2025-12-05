@@ -85,18 +85,6 @@ class CRocksDBTest {
     }
 
     @Test
-    void testAccessReservedColumnFamilyThrows() {
-        DataBase db = CRocksDB.getInstance();
-        byte[] key = "somekey".getBytes(StandardCharsets.UTF_8);
-        byte[] value = "somevalue".getBytes(StandardCharsets.UTF_8);
-        String directory = "__ZK_SYS_AUTH__";
-        assertThrows(IllegalArgumentException.class, () -> db.put(key, value, directory));
-        assertThrows(IllegalArgumentException.class, () -> db.get(key, directory));
-        assertThrows(IllegalArgumentException.class, () -> db.delete(key, directory));
-
-    }
-
-    @Test
     void testDynamicColumnFamilyCreation() {
         DataBase db = CRocksDB.getInstance();
         String newCF = "dynamic_cf";

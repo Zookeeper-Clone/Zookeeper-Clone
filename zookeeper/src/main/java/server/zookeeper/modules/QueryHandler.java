@@ -61,7 +61,8 @@ public class QueryHandler implements MessageHandler{
     private void delete(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
             response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");
-        } else {
+            return;
+        }
             String key = query.getKey();
 
             String dir = (directory == null || directory.isEmpty()) ? null : directory;
@@ -79,7 +80,6 @@ public class QueryHandler implements MessageHandler{
 
                 response.setSuccess(true)
                         .setValue("OK ENTRY DELETED");
-            }
         }
     }
 

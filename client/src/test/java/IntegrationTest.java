@@ -11,7 +11,8 @@ public class IntegrationTest {
 
     private static RaftClient raftClient;
     private static ZookeeperClient client;
-    
+    private static final String entrySucess = "OK ENTRY ADDED";
+    private static final String notFound = "__NOT_FOUND__";
     private static final String[] IDS = {"n1", "n2", "n3", "n4", "n5"};
     private static final int[] PORTS = {6001, 6002, 6003, 6004, 6005};
     private static final String GROUP_ID = "00000000-0000-0000-0000-000000000001";
@@ -36,7 +37,7 @@ public class IntegrationTest {
     @Order(1)
     public void testBasicWriteAndRead() {
         String writeResponse = client.write("user1", "John Doe").getValue();
-        assertEquals("OK ENTRY ADDED", writeResponse, "Write operation should succeed");
+        assertEquals(entrySucess, writeResponse, "Write operation should succeed");
 
         String readResponse = client.read("user1").getValue();
         assertEquals("John Doe", readResponse, "Read should return the written value");
@@ -49,9 +50,9 @@ public class IntegrationTest {
         String response2 = client.write("user3", "Bob").getValue();
         String response3 = client.write("user4", "Charlie").getValue();
 
-        assertEquals("OK ENTRY ADDED", response1);
-        assertEquals("OK ENTRY ADDED", response2);
-        assertEquals("OK ENTRY ADDED", response3);
+        assertEquals(entrySucess, response1);
+        assertEquals(entrySucess, response2);
+        assertEquals(entrySucess, response3);
 
         assertEquals("Alice", client.read("user2").getValue());
         assertEquals("Bob", client.read("user3").getValue());
@@ -65,7 +66,7 @@ public class IntegrationTest {
         assertEquals("version1", client.read("config").getValue());
 
         String updateResponse = client.write("config", "version2").getValue();
-        assertEquals("OK ENTRY ADDED", updateResponse);
+        assertEquals(entrySucess, updateResponse);
 
         assertEquals("version2", client.read("config").getValue());
     }
@@ -77,9 +78,9 @@ public class IntegrationTest {
         ZookeeperClient.QueryResult response2 = client.write("employee1", "$80000", "salary");
         ZookeeperClient.QueryResult response3 = client.write("employee1", "Senior Developer", "position");
 
-        assertEquals("OK ENTRY ADDED", response1.getValue());
-        assertEquals("OK ENTRY ADDED", response2.getValue());
-        assertEquals("OK ENTRY ADDED", response3.getValue());
+        assertEquals(entrySucess, response1.getValue());
+        assertEquals(entrySucess, response2.getValue());
+        assertEquals(entrySucess, response3.getValue());
 
         assertEquals("Engineering", client.read("employee1", "department").getValue());
         assertEquals("$80000", client.read("employee1", "salary").getValue());
@@ -109,7 +110,7 @@ public class IntegrationTest {
         boolean deleteResult = client.delete("temp").isSuccess();
 
         String readAfterDelete = client.read("temp").getValue();
-        assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
+        assertEquals(notFound, readAfterDelete, "Deleted entry should not be found");
     }
 
     @Test
@@ -121,21 +122,21 @@ public class IntegrationTest {
         boolean deleteResult = client.delete("session1", "status").isSuccess();
 
         String readAfterDelete = client.read("session1", "status").getValue();
-        assertEquals("__NOT_FOUND__", readAfterDelete, "Deleted entry should not be found");
+        assertEquals(notFound, readAfterDelete, "Deleted entry should not be found");
     }
 
     @Test
     @Order(8)
     public void testReadNonExistentKey() {
         String result = client.read("nonexistent_key").getValue();
-        assertEquals("__NOT_FOUND__", result, "Non-existent key should return __NOT_FOUND__");
+        assertEquals(notFound, result, "Non-existent key should return __NOT_FOUND__");
     }
 
     @Test
     @Order(9)
     public void testReadNonExistentDirectory() {
         String result = client.read("some_key", "nonexistent_directory").getValue();
-        assertEquals("__NOT_FOUND__", result, "Non-existent directory should return __NOT_FOUND__");
+        assertEquals(notFound, result, "Non-existent directory should return __NOT_FOUND__");
     }
 
     @Test
@@ -153,7 +154,7 @@ public class IntegrationTest {
         assertEquals("false", client.read("app_config", "debug_mode").getValue());
 
         client.delete("app_config", "log_level");
-        assertEquals("__NOT_FOUND__", client.read("app_config", "log_level").getValue());
+        assertEquals(notFound, client.read("app_config", "log_level").getValue());
 
         assertEquals("production", client.read("app_config", "environment").getValue());
         assertEquals("false", client.read("app_config", "debug_mode").getValue());
@@ -223,7 +224,7 @@ public class IntegrationTest {
         assertEquals("first_value", client.read(key).getValue());
 
         client.delete(key);
-        assertEquals("__NOT_FOUND__", client.read(key).getValue());
+        assertEquals(notFound, client.read(key).getValue());
 
         client.write(key, "second_value");
         assertEquals("second_value", client.read(key).getValue());
