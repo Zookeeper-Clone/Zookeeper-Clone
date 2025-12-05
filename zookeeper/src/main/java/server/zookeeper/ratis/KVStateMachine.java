@@ -33,7 +33,6 @@ import server.zookeeper.DB.DataBase;
 import server.zookeeper.modules.AuthHandler;
 import server.zookeeper.modules.MessageRouter;
 import server.zookeeper.modules.QueryHandler;
-import server.zookeeper.modules.QueryHandlerAdapter;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.storage.FileListStateMachineStorage;
 import server.zookeeper.util.PasswordHasher;
@@ -49,8 +48,7 @@ public class KVStateMachine extends BaseStateMachine {
     public KVStateMachine(DataBase keyValStore) {
         try {
             QueryHandler queryHandler = new QueryHandler(keyValStore);
-            QueryHandlerAdapter queryAdapter = new QueryHandlerAdapter(queryHandler);
-            this.messageRouter = new MessageRouter(queryAdapter);
+            this.messageRouter = new MessageRouter(queryHandler);
             this.db = keyValStore;
 
             AuthRepository authRepository = new AuthRepository(keyValStore);
@@ -63,7 +61,7 @@ public class KVStateMachine extends BaseStateMachine {
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier);
 
-            messageRouter.registerHandler(MessageType.QUERY, queryAdapter);
+            messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);
             LOG.info("KVStateMachine initialized with MessageRouter");
         }catch (Exception e){

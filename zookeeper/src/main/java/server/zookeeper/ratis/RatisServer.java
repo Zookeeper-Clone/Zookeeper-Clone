@@ -1,5 +1,6 @@
 package server.zookeeper.ratis;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -14,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.CRocksDB;
 
-public class RatisServer {
+public class RatisServer implements Closeable {
     private final RaftServer server;
     Logger LOG = LoggerFactory.getLogger(RatisServer.class);
 
@@ -42,6 +43,7 @@ public class RatisServer {
         LOG.info("Raft Server {} started at porttt : {} ", server.getId(), server.getServerRpc().getInetSocketAddress());
     }
 
+    @Override
     public void close() throws IOException {
         server.close();
     }

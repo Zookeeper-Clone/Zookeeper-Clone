@@ -19,6 +19,7 @@ public class AuthHandler implements MessageHandler {
     private static final String HANDLER_TYPE = "AUTH";
     private static final int MIN_PASSWORD_LENGTH = 8;
     private static final int MAX_PASSWORD_LENGTH = 128;
+    public static final String LOGIN_VALIDATION_FAILED = "Login validation failed: {}";
     private final AuthRepository authRepository;
     private final PasswordHasher passwordHasher;
     private final GoogleIdTokenVerifier verifier;
@@ -199,7 +200,7 @@ public class AuthHandler implements MessageHandler {
     }
     private AuthResponse handleChangePassword(AuthRequest request) {
         LOG.debug("Processing CHANGE_PASSWORD request for: {}", EmailUtils.maskEmail(request.getEmail()));
-
+        // FIXME: Use chain of responsibility
         try {
             ValidationResult emailValidation = validateChangePasswordRequest(request);
             if (!emailValidation.isValid()) {
@@ -247,13 +248,7 @@ public class AuthHandler implements MessageHandler {
             }
 
             String newPasswordHash = passwordHasher.hashPassword(request.getNewPassword());
-            UserAuth updatedUser = UserAuth.newBuilder()
-                    .setEmail(user.getEmail())
-                    .setPasswordHash(newPasswordHash)
-                    .setIsAdmin(user.getIsAdmin())
-                    .putAllPermissions(user.getPermissionsMap())
-                    .setCanCreateDirectories(user.getCanCreateDirectories())
-                    .build();
+            UserAuth updatedUser = getUserAuth(user, newPasswordHash);
             authRepository.updateUser(updatedUser);
             LOG.info("Successfully changed password for user: {}", EmailUtils.maskEmail(email));
 
@@ -269,12 +264,19 @@ public class AuthHandler implements MessageHandler {
         }
     }
 
+    private static UserAuth getUserAuth(UserAuth user, String newPasswordHash) {
+        return UserAuth.newBuilder()
+                .setEmail(user.getEmail())
+                .setPasswordHash(newPasswordHash)
+                .setIsAdmin(user.getIsAdmin())
+                .putAllPermissions(user.getPermissionsMap())
+                .setCanCreateDirectories(user.getCanCreateDirectories())
+                .build();
+    }
+
     private ValidationResult validateChangePasswordRequest(AuthRequest request) {
-        try {
-            EmailUtils.validateEmail(request.getEmail());
-        } catch (RuntimeException e) {
-            return ValidationResult.failure("Invalid email format");
-        }
+        ValidationResult Invalid_email_format = validateEmail(request);
+        if (Invalid_email_format != null) return Invalid_email_format;
 
         if (request.getPassword() == null || request.getPassword().isEmpty()) {
             return ValidationResult.failure("Current password is required");
@@ -293,7 +295,7 @@ public class AuthHandler implements MessageHandler {
         try {
             ValidationResult validation = validateLoginRequest(request);
             if (!validation.isValid()) {
-                LOG.warn("Login validation failed: {}", validation.getErrorMessage());
+                LOG.warn(LOGIN_VALIDATION_FAILED, validation.getErrorMessage());
                 return createErrorAuthResponse(validation.getErrorMessage());
             }
 
@@ -341,7 +343,7 @@ public class AuthHandler implements MessageHandler {
         try {
             ValidationResult validation = validateOAuthLoginRequest(request);
             if (!validation.isValid()) {
-                LOG.warn("Login validation failed: {}", validation.getErrorMessage());
+                LOG.warn(LOGIN_VALIDATION_FAILED, validation.getErrorMessage());
                 return createErrorAuthResponse(validation.getErrorMessage());
             }
             String email = request.getEmail().trim().toLowerCase();
@@ -355,13 +357,13 @@ public class AuthHandler implements MessageHandler {
             String sessionToken = generateSessionToken();
 
             LOG.info("Successfully logged in OAUTH user: {}", EmailUtils.maskEmail(email));
-            UserInfo userInfo = convertToUserInfo(userAuth);
-            return AuthResponse.newBuilder()
-                    .setSuccess(true)
-                    .setErrorMessage("")
-                    .setSessionToken(sessionToken)
-                    .setUserInfo(userInfo)
-                    .build();
+                UserInfo userInfo = convertToUserInfo(userAuth);
+                return AuthResponse.newBuilder()
+                        .setSuccess(true)
+                        .setErrorMessage("")
+                        .setSessionToken(sessionToken)
+                        .setUserInfo(userInfo)
+                        .build();
 
         }catch (Exception e){
             LOG.error("Error during login", e);
@@ -372,14 +374,13 @@ public class AuthHandler implements MessageHandler {
         return UUID.randomUUID().toString();
     }
     private ValidationResult validateOAuthLoginRequest(AuthRequest request){
-        try {
-            EmailUtils.validateEmail(request.getEmail());
-        }catch (RuntimeException e){
-            return ValidationResult.failure("Invalid email format");
-        }
+        ValidationResult Invalid_email_format = validateEmail(request);
+        if (Invalid_email_format != null) return Invalid_email_format;
+
         if(request.getGoogleToken() == null || request.getGoogleToken().isEmpty()){
             return ValidationResult.failure("Google Token cannot be empty");
         }
+
         try {
             GoogleIdToken token = verifier.verify(request.getGoogleToken());
             if(!token.getPayload().getEmail().equals(request.getEmail())){
@@ -390,12 +391,19 @@ public class AuthHandler implements MessageHandler {
         }
         return ValidationResult.success();
     }
-    private ValidationResult validateLoginRequest(AuthRequest request) {
+
+    private static ValidationResult validateEmail(AuthRequest request) {
         try {
             EmailUtils.validateEmail(request.getEmail());
-        } catch (RuntimeException e) {
+        } catch (RuntimeException e){
             return ValidationResult.failure("Invalid email format");
         }
+        return null;
+    }
+
+    private ValidationResult validateLoginRequest(AuthRequest request) {
+        ValidationResult Invalid_email_format = validateEmail(request);
+        if (Invalid_email_format != null) return Invalid_email_format;
 
 
         if (request.getPassword() == null || request.getPassword().isEmpty()) {
@@ -440,27 +448,21 @@ public class AuthHandler implements MessageHandler {
         }
     }
     private ValidationResult validateOAuthRegistrationRequest(AuthRequest request){
-        try {
-            EmailUtils.validateEmail(request.getEmail());
-        }catch (RuntimeException e){
-            return ValidationResult.failure("Invalid email format");
-        }
+        ValidationResult Invalid_email_format = validateEmail(request);
+        if (Invalid_email_format != null) return Invalid_email_format;
         try {
             GoogleIdToken token = verifier.verify(request.getGoogleToken());
             if(!token.getPayload().getEmail().equals(request.getEmail())){
                 return ValidationResult.failure("Token Email doesn't match request email");
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             return ValidationResult.failure("Invalid Google format");
         }
         return ValidationResult.success();
     }
     private ValidationResult validateRegistrationRequest(AuthRequest request) {
-        try {
-            EmailUtils.validateEmail(request.getEmail());
-        } catch (RuntimeException e) {
-            return ValidationResult.failure("Invalid email format");
-        }
+        ValidationResult Invalid_email_format = validateEmail(request);
+        if (Invalid_email_format != null) return Invalid_email_format;
 
         ValidationResult passwordValidation = validatePassword(request.getPassword());
         if (!passwordValidation.isValid()) {

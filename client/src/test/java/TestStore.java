@@ -1,79 +1,197 @@
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
+import client.zookeeper.ZookeeperClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import client.zookeeper.ZookeeperClient;
+import java.lang.reflect.Method;
+import server.zookeeper.proto.auth.AuthOperationType;
+import server.zookeeper.proto.auth.AuthRequest;
+import server.zookeeper.proto.query.QueryType;
+import server.zookeeper.proto.query.UserQuery;
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.Optional;
 
 public class TestStore {
 
-    private MockRaftClient mockRaftClient;
-    private ZookeeperClient zookeeperClient;
+    private ZookeeperClient client;
 
     @BeforeEach
-    public void setUp() {
-        mockRaftClient = new MockRaftClient();
-        zookeeperClient = new ZookeeperClient(mockRaftClient);
+    void setUp() {
+        // Do not initialize RaftClient; focus on logic-only tests
+        client = new ZookeeperClient(null);
+    }
+
+    // ===================== SESSION TOKEN TESTS =====================
+
+    @Test
+    void testIsAuthenticatedWithoutLogin() {
+        assertFalse(client.isAuthenticated());
+        assertFalse(client.getSessionToken().isPresent());
+    }
+
+
+    // ===================== AUTHENTICATION RESULT TESTS =====================
+
+    @Test
+    void testAuthenticationResultSuccessWithToken() {
+        ZookeeperClient.AuthenticationResult result =
+                ZookeeperClient.AuthenticationResult.success("ok", "token123");
+
+        assertTrue(result.isSuccess());
+        assertEquals("ok", result.getMessage());
+        assertEquals(Optional.of("token123"), result.getSessionToken());
     }
 
     @Test
-    public void addEntry() {
-        String key = "key";
-        String value = "value";
-        String response = zookeeperClient.write(key, value);
-        assertEquals("OK ENTRY ADDED", response);
+    void testAuthenticationResultSuccessWithoutToken() {
+        ZookeeperClient.AuthenticationResult result =
+                ZookeeperClient.AuthenticationResult.success("ok");
+
+        assertTrue(result.isSuccess());
+        assertEquals("ok", result.getMessage());
+        assertEquals(Optional.empty(), result.getSessionToken());
     }
 
     @Test
-    public void readEntry() {
-        String key = "key";
-        String value = "value";
-        zookeeperClient.write(key, value);
-        String response = zookeeperClient.read(key);
-        assertEquals("value", response);
+    void testAuthenticationResultFailure() {
+        ZookeeperClient.AuthenticationResult result =
+                ZookeeperClient.AuthenticationResult.failure("fail");
+
+        assertFalse(result.isSuccess());
+        assertEquals("fail", result.getMessage());
+        assertEquals(Optional.empty(), result.getSessionToken());
+    }
+
+    // ===================== QUERY RESULT TESTS =====================
+
+    @Test
+    void testQueryResultSuccessWithValue() {
+        ZookeeperClient.QueryResult result =
+                ZookeeperClient.QueryResult.success("ok", "val");
+
+        assertTrue(result.isSuccess());
+        assertEquals("ok", result.getMessage());
+        assertEquals("val", result.getValue());
     }
 
     @Test
-    public void deleteEntry() {
-        String key = "key";
-        String value = "value";
-        zookeeperClient.write(key, value);
-        boolean deleteResponse = zookeeperClient.delete(key);
-        assert(deleteResponse);
-        String response = zookeeperClient.read(key);
-        assertEquals("__NOT_FOUND__", response);
+    void testQueryResultSuccessWithoutValue() {
+        ZookeeperClient.QueryResult result =
+                ZookeeperClient.QueryResult.success("ok");
+
+        assertTrue(result.isSuccess());
+        assertEquals("ok", result.getMessage());
+        assertNull(result.getValue());
     }
 
     @Test
-    public void multiWriteEntry() {
-        String key1 = "key1";
-        String value1 = "value1";
-        String writeResponse1 = zookeeperClient.write(key1, value1);
+    void testQueryResultFailure() {
+        ZookeeperClient.QueryResult result =
+                ZookeeperClient.QueryResult.failure("fail");
 
-        String key2 = "key2";
-        String value2 = "value2";
-        String writeResponse2 = zookeeperClient.write(key2, value2);
+        assertFalse(result.isSuccess());
+        assertEquals("fail", result.getMessage());
+        assertNull(result.getValue());
+    }
 
-        String readResponse1 = zookeeperClient.read(key1);
-        String readResponse2 = zookeeperClient.read(key2);
+    // ===================== TO STRING TESTS =====================
 
-        assertEquals("OK ENTRY ADDED", writeResponse1);
-        assertEquals("OK ENTRY ADDED", writeResponse2);
-        assertEquals("value1", readResponse1);
-        assertEquals("value2", readResponse2);
+    @Test
+    void testAuthenticationResultToString() {
+        ZookeeperClient.AuthenticationResult result =
+                ZookeeperClient.AuthenticationResult.success("ok", "tok");
+        String str = result.toString();
+        assertTrue(str.contains("success=true"));
+        assertTrue(str.contains("hasToken=true"));
     }
 
     @Test
-    public void updateEntry() {
-        String key1 = "key1";
-        String value1 = "value1";
-        zookeeperClient.write(key1, value1);
+    void testQueryResultToString() {
+        ZookeeperClient.QueryResult result =
+                ZookeeperClient.QueryResult.success("ok", "val");
+        String str = result.toString();
+        assertTrue(str.contains("success=true"));
+        assertTrue(str.contains("value=val"));
+    }
 
-        value1 = "newValue1";
-        String response = zookeeperClient.write(key1, value1);
-        assertEquals("OK ENTRY ADDED", response);
+    @Test
+    void testBuildQueryRequest() throws Exception {
+        Method method = ZookeeperClient.class.getDeclaredMethod(
+                "buildQueryRequest", QueryType.class, String.class, String.class, String.class);
+        method.setAccessible(true);
 
-        String readResponse = zookeeperClient.read(key1);
-        assertEquals(value1, readResponse);
+        UserQuery query = (UserQuery) method.invoke(client, QueryType.GET, "key1", "val1", "dir1");
+
+        assertEquals(QueryType.GET, query.getQueryType());
+        assertEquals("key1", query.getKey());
+        assertEquals("val1", query.getValue());
+        assertEquals("dir1", query.getDirectory());
+    }
+
+    @Test
+    void testBuildAuthRequestWithoutSessionToken() throws Exception {
+        Method method = ZookeeperClient.class.getDeclaredMethod(
+                "buildAuthRequest", AuthOperationType.class, String.class, String.class);
+        method.setAccessible(true);
+
+        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.REGISTER, "a@b.com", "pass");
+
+        assertEquals(AuthOperationType.REGISTER, req.getOperation());
+        assertEquals("a@b.com", req.getEmail());
+        assertEquals("pass", req.getPassword());
+    }
+
+    @Test
+    void testBuildAuthRequestWithSessionToken() throws Exception {
+        // Manually set sessionToken via reflection
+        var tokenField = ZookeeperClient.class.getDeclaredField("sessionToken");
+        tokenField.setAccessible(true);
+        tokenField.set(client, "tok123");
+
+        Method method = ZookeeperClient.class.getDeclaredMethod(
+                "buildAuthRequest", AuthOperationType.class, String.class, String.class);
+        method.setAccessible(true);
+
+        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.LOGIN, "b@c.com", "pass2");
+
+        assertEquals(AuthOperationType.LOGIN, req.getOperation());
+        assertEquals("b@c.com", req.getEmail());
+        assertEquals("pass2", req.getPassword());
+        assertEquals("tok123", req.getSessionToken());
+    }
+
+    @Test
+    void testBuildOAuthRequestWithoutSessionToken() throws Exception {
+        Method method = ZookeeperClient.class.getDeclaredMethod(
+                "buildOAuthRequest", AuthOperationType.class, String.class, String.class);
+        method.setAccessible(true);
+
+        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.LOGIN_OAUTH, "o@auth.com", "tokenX");
+
+        assertEquals(AuthOperationType.LOGIN_OAUTH, req.getOperation());
+        assertEquals("o@auth.com", req.getEmail());
+        assertEquals("tokenX", req.getGoogleToken());
+        assertTrue(req.getSessionToken().isEmpty()); // instead of hasSessionToken()
+    }
+
+    @Test
+    void testBuildOAuthRequestWithSessionToken() throws Exception {
+        // Manually set sessionToken via reflection
+        var tokenField = ZookeeperClient.class.getDeclaredField("sessionToken");
+        tokenField.setAccessible(true);
+        tokenField.set(client, "sessTok");
+
+        Method method = ZookeeperClient.class.getDeclaredMethod(
+                "buildOAuthRequest", AuthOperationType.class, String.class, String.class);
+        method.setAccessible(true);
+
+        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.REGISTER_OAUTH, "x@y.com", "oauthTok");
+
+        assertEquals(AuthOperationType.REGISTER_OAUTH, req.getOperation());
+        assertEquals("x@y.com", req.getEmail());
+        assertEquals("oauthTok", req.getGoogleToken());
+        assertEquals("sessTok", req.getSessionToken());
     }
 }

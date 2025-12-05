@@ -12,9 +12,13 @@ import server.zookeeper.proto.MessageWrapper;
 import server.zookeeper.proto.auth.AuthOperationType;
 import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.auth.AuthResponse;
+import server.zookeeper.proto.query.QueryResponse;
+import server.zookeeper.proto.query.QueryType;
+import server.zookeeper.proto.query.UserQuery;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.function.Function;
 
 public class ZookeeperClient {
     private static final Logger LOG = LoggerFactory.getLogger(ZookeeperClient.class);
@@ -65,7 +69,14 @@ public class ZookeeperClient {
     public Optional<String> getSessionToken() {
         return Optional.ofNullable(sessionToken);
     }
-
+    private UserQuery buildQueryRequest(QueryType queryType, String key , String value,String directory){
+        return UserQuery.newBuilder()
+                .setQueryType(queryType)
+                .setKey(key)
+                .setValue(value)
+                .setDirectory(directory)
+                .build();
+    }
     private AuthRequest buildAuthRequest(AuthOperationType operation, String email, String password) {
         AuthRequest.Builder builder = AuthRequest.newBuilder()
                 .setOperation(operation)
@@ -90,34 +101,32 @@ public class ZookeeperClient {
         return builder.build();
     }
 
-    private MessageWrapper wrapAuthRequest(AuthRequest authRequest) {
-        return MessageWrapper.newBuilder()
-                .setType(MessageType.AUTH)
-                .setPayload(authRequest.toByteString())
-                .build();
-    }
-
     private AuthenticationResult sendAuthRequest(AuthRequest authRequest, boolean isReadOnly) {
+        return sendRequest(authRequest , MessageType.AUTH , isReadOnly, this::parseAuthResponse);
+    }
+    private QueryResult sendQueryRequest(UserQuery userQyery, boolean isReadOnly){
+        return sendRequest(userQyery, MessageType.QUERY, isReadOnly,this::parseQueryResponse);
+    }
+    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser){
         try {
-            MessageWrapper wrapper = wrapAuthRequest(authRequest);
+            MessageWrapper wrapper = MessageWrapper.newBuilder()
+                    .setType(type)
+                    .setPayload(request.toByteString())
+                    .build();
             Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
 
             RaftClientReply reply = isReadOnly
                     ? raftClient.io().sendReadOnly(message)
                     : raftClient.io().send(message);
-
-            if (!reply.isSuccess()) {
-                return AuthenticationResult.failure("Request failed: " + reply.getException());
+            if (!reply.isSuccess()){
+                return responseParser.apply(null);
             }
-
-            return parseAuthResponse(reply.getMessage().getContent());
-
-        } catch (IOException e) {
-            LOG.error("Failed to send auth request", e);
-            return AuthenticationResult.failure("Communication error: " + e.getMessage());
+            return responseParser.apply(reply.getMessage().getContent());
+        }catch (IOException e){
+            LOG.error("Request failed" , e);
+            return responseParser.apply(null);
         }
     }
-
     private AuthenticationResult parseAuthResponse(ByteString responseBytes) {
         try {
             AuthResponse authResponse = AuthResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
@@ -132,55 +141,49 @@ public class ZookeeperClient {
             return AuthenticationResult.failure("Invalid server response");
         }
     }
-
-    private String sendMessage(String command, boolean expectBoolean) {
+    private QueryResult parseQueryResponse(ByteString responseBytes){
         try {
-            RaftClientReply reply;
-            if (command.startsWith("GET") || command.equals("READALL")) {
-                reply = raftClient.io().sendReadOnly(Message.valueOf(command));
-            } else {
-                reply = raftClient.io().send(Message.valueOf(command));
-            }
+            QueryResponse queryResponse = QueryResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
 
-            if (!reply.isSuccess()) {
-                return expectBoolean ? null : "ERROR";
-            }
-
-            String content = reply.getMessage().getContent().toStringUtf8();
-            return expectBoolean ? content : content;
-        } catch (Exception e) {
-            return expectBoolean ? null : "ERROR";
+            return new QueryResult(
+                    queryResponse.getSuccess(),
+                    queryResponse.getErrorMessage(),
+                    queryResponse.getValue());
+        }catch (InvalidProtocolBufferException e){
+            LOG.error("Failed to parse query response");
+            return QueryResult.failure("Invalid Server response");
         }
     }
 
-    public String readAll() {
-        return sendMessage("READALL", false);
+
+    public QueryResult read(String key) {
+        UserQuery q = buildQueryRequest(QueryType.GET,key,"","");
+        return sendQueryRequest(q,true);
     }
 
-    public String read(String key) {
-        return sendMessage("GET " + key, false);
+    public QueryResult read(String key, String directory) {
+        UserQuery q = buildQueryRequest(QueryType.GET,key,"",directory);
+        return sendQueryRequest(q,true);
     }
 
-    public String read(String key, String directory) {
-        return sendMessage("GET " + key + " IN " + directory, false);
+    public QueryResult write(String key, String value) {
+        UserQuery q = buildQueryRequest(QueryType.WRITE,key,value,"");
+        return sendQueryRequest(q,false);
     }
 
-    public String write(String key, String value) {
-        return sendMessage("PUT " + key + "=" + value, false);
+    public QueryResult write(String key, String value,String directory) {
+        UserQuery q = buildQueryRequest(QueryType.WRITE,key,value,directory);
+        return sendQueryRequest(q,false);
     }
 
-    public String write(String key, String value, String directory) {
-        return sendMessage("PUT " + key + "=" + value + " IN " + directory, false);
+    public QueryResult delete(String key) {
+        UserQuery q = buildQueryRequest(QueryType.DELETE, key, "" , "");
+        return sendQueryRequest(q,false);
     }
 
-    public boolean delete(String key) {
-        String result = sendMessage("DELETE " + key, false);
-        return "OK ENTRY DELETED".equals(result);
-    }
-
-    public boolean delete(String key, String directory) {
-        String result = sendMessage("DELETE " + key + " IN " + directory, false);
-        return "OK ENTRY DELETED".equals(result);
+    public QueryResult delete(String key, String directory) {
+        UserQuery q = buildQueryRequest(QueryType.DELETE, key, "" , directory);
+        return sendQueryRequest(q,false);
     }
 
     public static class AuthenticationResult {
@@ -222,6 +225,45 @@ public class ZookeeperClient {
         public String toString() {
             return String.format("AuthenticationResult{success=%s, message='%s', hasToken=%s}",
                     success, message, sessionToken != null);
+        }
+    }
+    public static class QueryResult {
+        private final boolean success;
+        private final String message;
+        private final String value;
+
+        private QueryResult(boolean success, String message, String value) {
+            this.success = success;
+            this.message = message;
+            this.value = value;
+        }
+
+        public static QueryResult success(String message, String value) {
+            return new QueryResult(true, message, value);
+        }
+
+        public static QueryResult success(String message) {
+            return new QueryResult(true, message, null);
+        }
+
+        public static QueryResult failure(String message) {
+            return new QueryResult(false, message, null);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public String getValue() {return value;}
+
+        @Override
+        public String toString() {
+            return String.format("QueryResult{success=%s, message='%s', value=%s}",
+                    success, message, value);
         }
     }
 }

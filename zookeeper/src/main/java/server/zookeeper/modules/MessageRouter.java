@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.proto.MessageWrapper;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -16,14 +15,6 @@ public class MessageRouter {
     private static final Logger LOG = LoggerFactory.getLogger(MessageRouter.class);
     private final Map<MessageType, MessageHandler> handlers;
     private final MessageHandler fallbackHandler;
-
-    //! This is Temporary. all messages should be wrapped in protobuf MessageWrapper
-    //TODO: Remove RAW_STRING support in future versions
-    private enum MessageFormat {
-        PROTOBUF_WRAPPED,  // Message wrapped in MessageWrapper protobuf
-        RAW_STRING,        // Legacy raw string command (PUT/GET/DELETE)
-        UNKNOWN            // Unknown format
-    }
 
     public MessageRouter(MessageHandler fallbackHandler) {
         if (fallbackHandler == null) {
@@ -37,7 +28,7 @@ public class MessageRouter {
                 fallbackHandler.getHandlerType());
     }
 
-    public MessageRouter registerHandler(MessageType messageType, MessageHandler handler) {
+    public void registerHandler(MessageType messageType, MessageHandler handler) {
         if (messageType == null) {
             throw new IllegalArgumentException("Message type cannot be null");
         }
@@ -49,25 +40,23 @@ public class MessageRouter {
         LOG.info("Registered handler for message type: {} -> {}",
                 messageType, handler.getClass().getSimpleName());
 
-        return this;
     }
 
     public Message route(byte[] payload, boolean isMutation) {
         try {
             // Try to detect message format
-            MessageFormat format = detectMessageFormat(payload);
+            MessageType messageType = detectMessageType(payload);
 
-            LOG.debug("Detected message format: {}", format);
+            LOG.debug("Detected message format: {}", messageType);
 
-            switch (format) {
-                case PROTOBUF_WRAPPED:
-                    return routeWrappedMessage(payload, isMutation);
-
-                case RAW_STRING:
-                    return routeRawMessage(payload, isMutation);
-
+            switch (messageType) {
+                case AUTH:
+                    LOG.info("MESSAGE IS AUTH MESSAGE");
+                case QUERY:
+                    LOG.info("MESSAGE IS QUERY MESSAGE");
+                    return routeMessage(payload, isMutation);
                 default:
-                    return createErrorResponse("Unknown message format");
+                    return createErrorResponse("Unknown message type");
             }
 
         } catch (Exception e) {
@@ -76,26 +65,20 @@ public class MessageRouter {
         }
     }
 
-    private MessageFormat detectMessageFormat(byte[] payload) {
+    private MessageType detectMessageType(byte[] payload) {
         if (payload == null || payload.length == 0) {
-            return MessageFormat.UNKNOWN;
+            return MessageType.UNSPECIFIED;
         }
 
-        // Try to parse as protobuf MessageWrapper
         try {
-            MessageWrapper.parseFrom(payload);
-            return MessageFormat.PROTOBUF_WRAPPED;
+            MessageWrapper wrapper = MessageWrapper.parseFrom(payload);
+            return wrapper.getType();
         } catch (InvalidProtocolBufferException e) {
-            // Additional validation: check if it looks like a text command
-            String payloadStr = new String(payload, StandardCharsets.UTF_8);
-            if (payloadStr.trim().matches("^(PUT|GET|DELETE)\\s.*")) {
-                return MessageFormat.RAW_STRING;
-            }
-            return MessageFormat.UNKNOWN;
+            return MessageType.UNSPECIFIED;
         }
     }
 
-    private Message routeWrappedMessage(byte[] payload, boolean isMutation) {
+    private Message routeMessage(byte[] payload, boolean isMutation) {
         try {
             // Parse the MessageWrapper
             MessageWrapper wrapper = MessageWrapper.parseFrom(payload);
@@ -110,18 +93,13 @@ public class MessageRouter {
                 LOG.warn("No handler registered for message type: {}", messageType);
                 return createErrorResponse("No handler for message type: " + messageType);
             }
-
+            LOG.info("routeMessage - routing to {}" , handler.getHandlerType());
             return handler.handle(innerPayload, isMutation);
 
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse MessageWrapper", e);
             return createErrorResponse("Invalid protobuf message: " + e.getMessage());
         }
-    }
-
-    private Message routeRawMessage(byte[] payload, boolean isMutation) {
-        LOG.debug("Routing raw message to fallback handler");
-        return fallbackHandler.handle(payload, isMutation);
     }
 
     private Message createErrorResponse(String errorMessage) {

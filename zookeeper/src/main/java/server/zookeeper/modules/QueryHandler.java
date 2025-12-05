@@ -1,155 +1,133 @@
 package server.zookeeper.modules;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Objects;
+
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.protocol.Message;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.DataBase;
+import server.zookeeper.proto.auth.AuthOperationType;
+import server.zookeeper.proto.auth.AuthRequest;
+import server.zookeeper.proto.query.QueryResponse;
+import server.zookeeper.proto.query.QueryType;
+import server.zookeeper.proto.query.UserQuery;
 import server.zookeeper.util.ReservedDirectories;
 
-public class QueryHandler {
+public class QueryHandler implements MessageHandler{
     private final DataBase keyValStore;
-    private final String INVALID_QUERY = "INVALID QUERY";
-
+    private final String HANDLER_TYPE = "QUERY";
+    private final Logger LOG = LoggerFactory.getLogger(QueryHandler.class);
     public QueryHandler(DataBase keyValStore) {
         this.keyValStore = keyValStore;
     }
 
-    private enum CommandType {
-        PUT,
-        DELETE,
-        GET,
-        INVALID
-    }
-
-    private static class Command {
-        CommandType type;
-        String payload;
-        String directoryName;
-
-        Command(CommandType type, String payload, String directoryName) {
-            this.type = type;
-            this.payload = payload;
-            this.directoryName = directoryName;
-        }
-    }
-
-    public Message handleMutation(String query) {
-        Command command = parseCommand(query);
-
-        if (command.directoryName != null && ReservedDirectories.isReserved(command.directoryName)) {
-            String errorMsg = ReservedDirectories.getReservedDirectoryError(command.directoryName);
-            return Message.valueOf(errorMsg);
-        }
-        return executeMutation(command);
-    }
-
-    public Message handleQuery(String query) {
-        Command command = parseCommand(query);
-
-        if (command.directoryName != null && ReservedDirectories.isReserved(command.directoryName)) {
-            String errorMsg = ReservedDirectories.getReservedDirectoryError(command.directoryName);
-            return Message.valueOf(errorMsg);
-        }
-        return executeQuery(command);
-    }
-
-    private Command parseCommand(String query) {
-        String trimmed = query.trim();
-
-        // Extract type
-        int spaceIndex = trimmed.indexOf(' ');
-        String typeString;
-        String rest;
-
-        if (spaceIndex == -1) {
-            typeString = trimmed.toUpperCase();
-            rest = "";
-        } else {
-            typeString = trimmed.substring(0, spaceIndex).toUpperCase();
-            rest = trimmed.substring(spaceIndex + 1).trim();
-        }
-
-        CommandType type;
+    @Override
+    public Message handle(byte[] payload, boolean isMutation){
+        QueryResponse.Builder response = QueryResponse.newBuilder();
         try {
-            type = CommandType.valueOf(typeString);
-        } catch (IllegalArgumentException e) {
-            type = CommandType.INVALID;
+            UserQuery query = UserQuery.parseFrom(payload);
+            String directory = query.getDirectory().isEmpty() ? null : query.getDirectory();
+
+            if (ReservedDirectories.isReserved(directory)) {
+                response.setSuccess(false)
+                        .setErrorMessage(ReservedDirectories.getReservedDirectoryError(directory));
+                return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
+            }
+            switch (query.getQueryType()){
+                case GET:
+                    get(directory, query, response);
+                    break;
+                case WRITE:
+                    write(isMutation, response, query, directory);
+                    break;
+                case DELETE:
+                    delete(isMutation, response, query, directory);
+                    break;
+                default:
+                    response.setSuccess(false).setErrorMessage("Invalid query type");
+                    break;
+            }
+        }catch (Exception e){
+            response.setSuccess(false).setErrorMessage("Failed to handle query: " + e.getMessage());
+        }
+        LOG.info("SUCCESSFULLY EXECUTED");
+        return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
+    }
+
+    private void delete(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+        if (!isMutation) {
+            response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");
+            return;
+        }
+            String key = query.getKey();
+
+            String dir = (directory == null || directory.isEmpty()) ? null : directory;
+            byte[] existing = getExisting(dir, key);
+
+            if (existing == null) {
+                response.setSuccess(false)
+                        .setErrorMessage("Key does not exist")
+                        .setValue("__NOT_FOUND__");
+                LOG.info("KEY DOESN'T EXIST");
+            } else {
+                // Key exists, perform deletion
+                if (dir == null) keyValStore.delete(key.getBytes());
+                else keyValStore.delete(key.getBytes(), dir);
+
+                response.setSuccess(true)
+                        .setValue("OK ENTRY DELETED");
+        }
+    }
+
+    private byte[] getExisting(String dir, String key) {
+        return (dir == null) ? keyValStore.get(key.getBytes())
+                : keyValStore.get(key.getBytes(), dir);
+    }
+
+    private void write(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+        if (!isMutation) {
+            response.setSuccess(false).setErrorMessage("WRITE operation requires mutation flag");
+        } else {
+            String key = query.getKey();
+            String val = query.getValue();
+            if (directory == null) keyValStore.put(key.getBytes(), val.getBytes());
+            else keyValStore.put(key.getBytes(), val.getBytes(), directory);
+
+            response.setSuccess(true).setValue("OK ENTRY ADDED");
+        }
+    }
+
+    private void get(String directory, UserQuery query, QueryResponse.Builder response) {
+        byte[] valueArr = getExisting(directory, query.getKey());
+        String value = (valueArr == null) ? "__NOT_FOUND__" : new String(valueArr, StandardCharsets.UTF_8);
+        if(value.equals("__NOT_FOUND__")){
+            response.setSuccess(false).setErrorMessage("key not found").setValue(value);
+        }else{
+            response.setSuccess(true).setValue(value);
+        }
+    }
+
+    @Override
+    public String getHandlerType() {
+        return HANDLER_TYPE;
+    }
+
+    @Override
+    public boolean canHandle(byte[] payload) {
+        if (payload == null || payload.length == 0) {
+            return false;
         }
 
-        String directoryName = null;
-        String payload = rest;
-
-        int inIndex = rest.lastIndexOf(" IN ");
-        if (inIndex != -1) {
-            payload = rest.substring(0, inIndex).trim();
-            directoryName = rest.substring(inIndex + 4).trim();
+        try {
+            UserQuery request = UserQuery.parseFrom(payload);
+            return request.getQueryType() != QueryType.QUERY_TYPE_UNSPECIFIED;
+        } catch (InvalidProtocolBufferException e) {
+            LOG.debug("Payload cannot be parsed as UserQuery", e);
+            return false;
         }
-
-        return new Command(type, payload, directoryName);
-    }
-
-    private Message executeMutation(Command cmd) {
-        String response;
-        switch (cmd.type) {
-            case PUT:
-                response = put(cmd.payload, cmd.directoryName);
-                break;
-            case DELETE:
-                response = delete(cmd.payload, cmd.directoryName);
-                break;
-            default:
-                response = INVALID_QUERY;
-        }
-        return Message.valueOf(response);
-    }
-
-    private Message executeQuery(Command cmd) {
-        String response;
-        switch (cmd.type) {
-            case GET:
-                response = get(cmd.payload, cmd.directoryName);
-                break;
-            default:
-                response = INVALID_QUERY;
-        }
-        return Message.valueOf(response);
-    }
-
-    private String put(String payload, String directoryName) {
-        String[] parts = payload.split("=", 2);
-        if (parts.length != 2)
-            return "ERROR INVALID MESSAGE";
-
-        String key = parts[0];
-        String value = parts[1];
-
-        if (directoryName == null)
-            keyValStore.put(key.getBytes(), value.getBytes());
-        else
-            keyValStore.put(key.getBytes(), value.getBytes(), directoryName);
-
-        return "OK ENTRY ADDED";
-    }
-
-    private String delete(String key, String directoryName) {
-        if (directoryName == null)
-            keyValStore.delete(key.getBytes());
-        else
-            keyValStore.delete(key.getBytes(), directoryName);
-
-        return "OK";
-    }
-
-    private String get(String key, String directoryName) {
-        byte[] val;
-
-        if (directoryName == null)
-            val = keyValStore.get(key.getBytes());
-        else
-            val = keyValStore.get(key.getBytes(), directoryName);
-
-        if (val == null)
-            return "__NOT_FOUND__";
-
-        return new String(val, StandardCharsets.UTF_8);
     }
 }

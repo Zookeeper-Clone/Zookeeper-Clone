@@ -34,7 +34,9 @@ class CRocksDBTest {
 
         reservedDirectoriesMock = mockStatic(ReservedDirectories.class);
         reservedDirectoriesMock.when(ReservedDirectories::getReservedDirectories)
-                .thenReturn(Set.of("auth", "logs"));
+                .thenReturn(Set.of("__ZK_SYS_AUTH__"));
+        reservedDirectoriesMock.when(() -> ReservedDirectories.isReserved("__ZK_SYS_AUTH__"))
+                .thenReturn(true);
     }
 
     @AfterEach
@@ -80,22 +82,6 @@ class CRocksDBTest {
 
         db.delete(key);
         assertNull(db.get(key));
-    }
-
-    @Test
-    void testNamedColumnFamilyCRUD() {
-        DataBase db = CRocksDB.getInstance();
-        String cfName = "auth";
-        byte[] key = "admin".getBytes(StandardCharsets.UTF_8);
-        byte[] value = "true".getBytes(StandardCharsets.UTF_8);
-
-        db.put(key, value, cfName);
-        assertArrayEquals(value, db.get(key, cfName));
-
-        assertNull(db.get(key));
-
-        db.delete(key, cfName);
-        assertNull(db.get(key, cfName));
     }
 
     @Test

@@ -14,6 +14,7 @@ import server.zookeeper.util.EnvUtils;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,11 +65,11 @@ public class CRocksDB implements DataBase, Closeable {
     }
 
     public static DataBase getInstance() {
-        if (null == instance) {
-            synchronized (CRocksDB.class) {
-                if (null == instance) {
-                    return instance = new CRocksDB();
-                }
+        if (null != instance) return instance;
+
+        synchronized (CRocksDB.class) {
+            if (null == instance) {
+                return instance = new CRocksDB();
             }
         }
         return instance;
@@ -87,9 +88,10 @@ public class CRocksDB implements DataBase, Closeable {
         }
     }
     private ColumnFamilyHandle getColumnFamilyHandle(String columnName){
-        if(cfHandles.containsKey(columnName)){
+
+        if (cfHandles.containsKey(columnName)) {
             return cfHandles.get(columnName);
-        }else{
+        } else {
             ColumnFamilyHandle newHandle = createColumnFamily(columnName);
             cfHandles.put(columnName, newHandle);
             return newHandle;
@@ -101,7 +103,7 @@ public class CRocksDB implements DataBase, Closeable {
             return db.get(key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while retrieving value for key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while retrieving value for key %s", keyString), e);
         }
     }
 
@@ -112,7 +114,7 @@ public class CRocksDB implements DataBase, Closeable {
             return db.get(cFamilyHandle,key);
         } catch (Exception e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while retrieving value for key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while retrieving value for key %s", keyString), e);
         }
     }
 
@@ -122,7 +124,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.put(key, val);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while inserting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while inserting key %s", keyString), e);
         }
     }
 
@@ -133,7 +135,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.put(cFamilyHandle,key,val);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while inserting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while inserting key %s", keyString), e);
         }
     }
 
@@ -143,7 +145,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.delete(key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while deleting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while deleting key %s", keyString), e);
         }
     }
 
@@ -154,7 +156,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.delete(cFamilyHandle,key);
         } catch (RocksDBException e) {
             String keyString = new String(key, StandardCharsets.UTF_8);
-            throw new RuntimeException(String.format("Error while deleting key %s", keyString), e);
+            throw new IllegalArgumentException(String.format("Error while deleting key %s", keyString), e);
         }
     }
 
@@ -177,18 +179,7 @@ public class CRocksDB implements DataBase, Closeable {
             db.close();
 
             Path dbPath = Path.of(DBPath);
-            if (Files.exists(dbPath)) {
-                try (var walk = Files.walk(dbPath)) {
-                    walk.sorted(java.util.Comparator.reverseOrder())
-                            .forEach(p -> {
-                                try {
-                                    Files.delete(p);
-                                } catch (Exception e) {
-                                    throw new RuntimeException("Failed to delete DB directory contents", e);
-                                }
-                            });
-                }
-            }
+            cleanUpDBDirectory(dbPath);
 
             Path snapshotPath = Path.of(snapshotAbsPath);
             if (!Files.isDirectory(snapshotPath)) {
@@ -197,21 +188,7 @@ public class CRocksDB implements DataBase, Closeable {
 
             Files.createDirectories(dbPath);
 
-            try (var walk = Files.walk(snapshotPath)) {
-                walk.forEach(src -> {
-                    try {
-                        Path dest = dbPath.resolve(snapshotPath.relativize(src));
-                        if (Files.isDirectory(src)) {
-                            Files.createDirectories(dest);
-                        } else {
-                            Files.copy(src, dest,
-                                    StandardCopyOption.REPLACE_EXISTING);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to copy snapshot file", e);
-                    }
-                });
-            }
+            copySnapshotContents(snapshotPath, dbPath);
 
             db = RocksDB.open(options, DBPath);
 
@@ -226,6 +203,39 @@ public class CRocksDB implements DataBase, Closeable {
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to load snapshot", e);
+        }
+    }
+
+    private static void copySnapshotContents(Path snapshotPath, Path dbPath) throws IOException {
+        try (var walk = Files.walk(snapshotPath)) {
+            walk.forEach(src -> {
+                try {
+                    Path dest = dbPath.resolve(snapshotPath.relativize(src));
+                    if (Files.isDirectory(src)) {
+                        Files.createDirectories(dest);
+                    } else {
+                        Files.copy(src, dest,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to copy snapshot file", e);
+                }
+            });
+        }
+    }
+
+    private static void cleanUpDBDirectory(Path dbPath) throws IOException {
+        if (Files.exists(dbPath)) {
+            try (var walk = Files.walk(dbPath)) {
+                walk.sorted(java.util.Comparator.reverseOrder())
+                        .forEach(p -> {
+                            try {
+                                Files.delete(p);
+                            } catch (Exception e) {
+                                throw new RuntimeException("Failed to delete DB directory contents", e);
+                            }
+                        });
+            }
         }
     }
 
