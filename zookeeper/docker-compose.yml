@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  n1:
+    build: .
+    container_name: n1
+    image: zookeeper-node
+    environment:
+      NODE_ID: "n1"
+      PORT: "6001"
+      CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
+      SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
+    ports:
+      - "6001:6001"
+
+  n2:
+    build: .
+    container_name: n2
+    image: zookeeper-node
+    environment:
+      NODE_ID: "n2"
+      PORT: "6002"
+      CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
+      SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
+    ports:
+      - "6002:6002"
+
+  n3:
+    build: .
+    container_name: n3
+    image: zookeeper-node
+    environment:
+      NODE_ID: "n3"
+      PORT: "6003"
+      CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
+      SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
+    ports:
+      - "6003:6003"
+
+  n4:
+    build: .
+    container_name: n4
+    image: zookeeper-node
+    environment:
+      NODE_ID: "n4"
+      PORT: "6004"
+      CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
+      SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
+    ports:
+      - "6004:6004"
+
+  n5:
+    build: .
+    container_name: n5
+    image: zookeeper-node
+    environment:
+      NODE_ID: "n5"
+      PORT: "6005"
+      CLUSTER: "n1:n1:6001,n2:n2:6002,n3:n3:6003,n4:n4:6004,n5:n5:6005"
+      SNAPSHOT_THRESHOLD: 10
+      DB_PATH : "/RocksDB"
+    ports:
+      - "6005:6005"

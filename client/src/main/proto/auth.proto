@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package zookeeper.auth;
+
+option java_package = "server.zookeeper.proto.auth";
+option java_outer_classname = "AuthProto";
+option java_multiple_files = true;
+
+// ============================================================================
+// Storage Messages
+// ============================================================================
+
+// User authentication and authorization data (stored in RocksDB)
+message UserAuth {
+  // User's email address (primary identifier)
+  string email = 1;
+
+  // Bcrypt hashed password (never store plaintext!)
+  string password_hash = 2;
+
+  // Whether user has admin privileges
+  bool is_admin = 3;
+
+  // Map of directory (column family) name to CRUD permissions bitmask
+  // Bitmask: CREATE=1, READ=2, UPDATE=4, DELETE=8
+  // Example: "my_data" -> 15 (full CRUD access)
+  map<string, int32> permissions = 4;
+
+  // Whether user can create new directories/column families
+  bool can_create_directories = 5;
+}
+
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+// Enum for authentication operation types
+enum AuthOperationType {
+  // Unspecified operation
+  AUTH_UNSPECIFIED = 0;
+
+  // Register a new user
+  REGISTER = 1;
+
+  // Login with credentials
+  LOGIN = 2;
+
+  // Logout and invalidate session
+  LOGOUT = 3;
+
+  // Change password
+  CHANGE_PASSWORD = 4;
+
+  // Modify permissions of a user (admin only)
+  MODIFY_PERMISSIONS = 5;
+
+   REGISTER_OAUTH = 6;
+
+   LOGIN_OAUTH = 7;
+}
+
+// Authentication request message
+message AuthRequest {
+  // Type of authentication operation
+  AuthOperationType operation = 1;
+
+  // User's email
+  string email = 2;
+
+  // Password (plaintext, will be hashed server-side)
+  string password = 3;
+
+  // New password (for CHANGE_PASSWORD operation)
+  string new_password = 4;
+
+  // Session token (for operations requiring authentication)
+  string session_token = 5;
+
+  // Permissions to set (for MODIFY_PERMISSIONS operation)
+  map<string, int32> permissions = 6;
+
+  // Admin flag (for MODIFY_PERMISSIONS operation)
+  bool is_admin = 7;
+
+  string google_token = 8;
+}
+
+// Authentication response message
+message AuthResponse {
+  // Whether the operation was successful
+  bool success = 1;
+
+  // Error message if success is false
+  string error_message = 2;
+
+  // User information (returned on GET_USER_INFO or after registration)
+  UserInfo user_info = 4;
+
+  // Session token (returned on successful LOGIN)
+  string session_token = 3;
+
+  // List of users (returned on LIST_USERS)
+  repeated UserInfo users = 5;
+}
+
+// User information (safe to return to clients - no password hash)
+message UserInfo {
+  // User's email
+  string email = 1;
+
+  // Whether user has admin privileges
+  bool is_admin = 2;
+
+  // Map of directory permissions
+  map<string, int32> permissions = 3;
+
+  // Whether user can create directories
+  bool can_create_directories = 4;
+}
+
+// ============================================================================
+// Permission Constants (for documentation)
+// ============================================================================
+// Permission bitmask values:
+// - CREATE = 1  (0001)
+// - READ   = 2  (0010)
+// - UPDATE = 4  (0100)
+// - DELETE = 8  (1000)
+//
+// Combined permissions:
+// - NONE      = 0  (0000)
+// - READ_ONLY = 2  (0010)
+// - WRITE     = 5  (0101) - CREATE + UPDATE
+// - FULL      = 15 (1111) - All permissions
+// ============================================================================
