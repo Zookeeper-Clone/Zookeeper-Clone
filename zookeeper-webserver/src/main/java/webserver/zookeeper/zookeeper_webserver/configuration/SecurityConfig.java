@@ -3,6 +3,7 @@ package webserver.zookeeper.zookeeper_webserver.configuration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -16,17 +17,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Link the CORS config
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**" , "/query/**", "/metrics/**" , "/watch/**").permitAll() // Allow auth endpoints
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll() // only call anyRequest() once
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        // Default redirect is /login/oauth2/code/google
-                        // You might need to configure the success handler to redirect back to localhost:3000
-                        .defaultSuccessUrl("http://localhost:3000/dashboard", true)
-                );
+                .oauth2Login(AbstractHttpConfigurer::disable) // disable OAuth login
+                .formLogin(AbstractHttpConfigurer::disable)        // disable form login
+                .httpBasic(AbstractHttpConfigurer::disable);     // disable basic auth
 
         return http.build();
     }

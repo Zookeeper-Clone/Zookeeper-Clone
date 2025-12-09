@@ -10,23 +10,20 @@ import webserver.zookeeper.zookeeper_webserver.services.QueryService;
 @RestController
 @RequestMapping("/query")
 public class QueryController {
-    public static class ReadRequest{
+    public static abstract class Request{
         private String key;
         private String directory;
 
         public String getKey(){return key;}
         public String getDirectory(){return directory;}
     }
-    public static class WriteRequest{
-        private String key;
+    public static class WriteRequest extends Request{
         private String value;
-        private String directory;
 
-        public String getKey(){return key;}
         public String getValue(){return value;}
-        public String getDirectory(){return directory;}
     }
-    public static class DeleteRequest extends ReadRequest{}
+    public static class ReadRequest extends Request{}
+    public static class DeleteRequest extends Request{}
     @Autowired
     private QueryService queryService;
 
