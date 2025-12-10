@@ -180,9 +180,11 @@ public class AuthHandler implements MessageHandler {
                     .build();
             authRepository.saveOAuthUser(userAuth);
             UserInfo userInfo = convertToUserInfo(userAuth);
+            String sessionToken = generateSessionToken();
             return AuthResponse.newBuilder()
                     .setSuccess(true)
                     .setUserInfo(userInfo)
+                    .setSessionToken(sessionToken)
                     .setErrorMessage("")
                     .build();
         }catch (Exception e){
