@@ -10,7 +10,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import EditIcon from '@mui/icons-material/Edit';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ReadPage from './ReadPage';
-import WritePage from './WritePage';
+import WritePage from './EditPage';
 import MetricsPage from './MetricsPage';
 
 const NAVIGATION = [
@@ -61,7 +61,7 @@ function DemoPageContent({ pathname }) {
     case '/metrics':
       return <MetricsPage />;
     default:
-      return <div>Welcome!</div>;
+      return <ReadPage/>;
   }
 }
 
@@ -83,6 +83,10 @@ function Home(props) {
         router={router}
         theme={demoTheme}
         window={demoWindow}
+        branding={{
+          title : "Zookeeper",
+          logo: <img src='/zookeeper.png'></img>
+        }}
       >
         <DashboardLayout>
           <DemoPageContent pathname={router.pathname} />

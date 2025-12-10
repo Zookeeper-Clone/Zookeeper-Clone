@@ -1,27 +1,37 @@
 import React, { useState, useEffect } from "react";
 import {
   Box, Grid, TextField, Button, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Typography
+  TableContainer, TableHead, TableRow, Paper, Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from "@mui/material";
 
-export default function ReadPage() {
+export default function EditPage() {
   const [keyInput, setKeyInput] = useState("");
   const [directoryInput, setDirectoryInput] = useState("");
-
+  const [valueInput, setValueInput] = useState("");
 
   // Load from localStorage
   const [historyData, setHistoryData] = useState(
-    JSON.parse(localStorage.getItem("historyData")) || []
+    JSON.parse(localStorage.getItem("writeHistoryData")) || []
   );
   const [frequencyData, setFrequencyData] = useState(
-    JSON.parse(localStorage.getItem("frequencyData")) || {}
+    JSON.parse(localStorage.getItem("writeFrequencyData")) || {}
   );
   const [cannedOperations, setCannedOperations] = useState(
-    JSON.parse(localStorage.getItem("cannedOperations"))
+    JSON.parse(localStorage.getItem("writeCannedOperations")) || []
   );
+
   const clearHistory = () => {
     setHistoryData([]);
-    localStorage.removeItem("historyData");
+    localStorage.removeItem("writeHistoryData");
+  };
+
+  const clearFrequency = () => {
+    setFrequencyData({});
+    localStorage.removeItem("writeFrequencyData");
   };
 
   const deleteCannedOperation = (id) => {
@@ -29,22 +39,17 @@ export default function ReadPage() {
     setCannedOperations(updated);
   };
 
-  const clearFrequency = () => {
-    setFrequencyData({});
-    localStorage.removeItem("frequencyData");
-  };
-
-  // --- Save to localStorage whenever state changes ---
+  // Save to localStorage
   useEffect(() => {
-    localStorage.setItem("historyData", JSON.stringify(historyData));
+    localStorage.setItem("writeHistoryData", JSON.stringify(historyData));
   }, [historyData]);
 
   useEffect(() => {
-    localStorage.setItem("frequencyData", JSON.stringify(frequencyData));
+    localStorage.setItem("writeFrequencyData", JSON.stringify(frequencyData));
   }, [frequencyData]);
 
   useEffect(() => {
-    localStorage.setItem("cannedOperations", JSON.stringify(cannedOperations));
+    localStorage.setItem("writeCannedOperations", JSON.stringify(cannedOperations));
   }, [cannedOperations]);
 
   const formatTimestamp = (isoString) => {
@@ -59,21 +64,13 @@ export default function ReadPage() {
 
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12;
-    hours = hours ? hours : 12; // 0 → 12
+    hours = hours ? hours : 12;
 
     return `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`;
   };
 
-
-  const [showAddOp, setShowAddOp] = useState(false);
-  const [newOpKey, setNewOpKey] = useState("");
-  const [newOpDir, setNewOpDir] = useState("");
-
-  // -------------------------------------------------------
-  // Utility: Update History + Frequency
-  // -------------------------------------------------------
   const pushHistory = (entry) => {
-    const updated = [entry, ...historyData].slice(0, 5); // Keep last 5
+    const updated = [entry, ...historyData].slice(0, 5);
     setHistoryData(updated);
   };
 
@@ -91,6 +88,12 @@ export default function ReadPage() {
     setFrequencyData(updated);
   };
 
+  const [showAddOp, setShowAddOp] = useState(false);
+  const [newOpKey, setNewOpKey] = useState("");
+  const [newOpDir, setNewOpDir] = useState("");
+  const [newOpValue, setNewOpValue] = useState("");
+  const [newOpType, setNewOpType] = useState("write");
+
   const addCannedOperation = () => {
     if (!newOpKey.trim()) return;
 
@@ -102,73 +105,71 @@ export default function ReadPage() {
     const newOp = {
       id: nextId,
       key: newOpKey,
-      directory: newOpDir
+      directory: newOpDir,
+      value: newOpValue,
+      type: newOpType,
     };
 
     setCannedOperations([...cannedOperations, newOp]);
 
     setNewOpKey("");
     setNewOpDir("");
+    setNewOpValue("");
+    setNewOpType("write");
     setShowAddOp(false);
   };
+
   const frequencyTable = Object.entries(frequencyData)
     .map(([key, v]) => ({ key, ...v }))
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 5);
 
+  // ------------- WRITE / DELETE LOGIC -------------
+  const sendCommand = async (commandType, key, directory, value) => {
+    const timestamp = new Date().toISOString();
+    const payload = { key, directory, value };
 
-  const handleRead = async () => {
-    const payload = { key: keyInput, directory: directoryInput };
+    const endpoint =
+      commandType === "write"
+        ? "http://localhost:8080/query/write"
+        : "http://localhost:8080/query/delete";
 
-    const response = await fetch("http://localhost:8080/query/read", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
-
-    const timestamp = new Date().toISOString();
-    const result = response.ok ? await response.text() : null;
 
     pushHistory({
-      key: keyInput,
-      directory: (directoryInput !== "") ? directoryInput : "-",
-      value: result,
+      key,
+      directory: directory || "-",
+      value: value || "-",
+      type: commandType,
       timestamp: formatTimestamp(timestamp),
-      status: response.ok ? "Success" : "Failed"
+      status: response.ok ? "Success" : "Failed",
     });
 
-    updateFrequency(keyInput);
+    updateFrequency(key);
   };
 
-  const handleExecute = async (opKey, opDirectory) => {
-    const payload = { key: opKey, directory: opDirectory };
+  const handleWrite = () => {
+    sendCommand("write", keyInput, directoryInput, valueInput);
+  };
 
-    const response = await fetch("http://localhost:8080/query/read", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+  const handleDelete = () => {
+    sendCommand("delete", keyInput, directoryInput, null);
+  };
 
-    const timestamp = new Date().toISOString();
-    const result = response.ok ? await response.text() : null;
-
-    pushHistory({
-      key: opKey,
-      directory: (opDirectory !== "") ? opDirectory : "-",
-      value: result,
-      timestamp : formatTimestamp(timestamp),
-      status: response.ok ? "Success" : "Failed"
-    });
-
-    updateFrequency(opKey);
+  const handleExecute = (op) => {
+    sendCommand(op.type, op.key, op.directory, op.value);
   };
 
   return (
     <Box sx={{ p: 3 }}>
       <Grid container spacing={4}>
         {/* Left Column */}
-        <Grid item xs={12} md={6}>
-          <Box sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6} sx={{ width: "50%" }}>
+          <Box sx={{ mb: 3, }}>
             <TextField
               label="Key"
               value={keyInput}
@@ -185,12 +186,25 @@ export default function ReadPage() {
               sx={{ mb: 2 }}
             />
 
-            <Button variant="contained" color="primary" onClick={handleRead}>
-              Read
+            <TextField
+              label="Value (for write)"
+              value={valueInput}
+              onChange={(e) => setValueInput(e.target.value)}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+
+            <Button variant="contained" sx={{ mr: 2 }} onClick={handleWrite}>
+              Write
+            </Button>
+
+            <Button variant="contained" color="error" onClick={handleDelete}>
+              Delete
             </Button>
           </Box>
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+          {/* Add Operation */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
             <Typography variant="h6">Canned Operations</Typography>
             <Button variant="outlined" onClick={() => setShowAddOp(true)}>
               + Add Operation
@@ -199,7 +213,9 @@ export default function ReadPage() {
 
           {showAddOp && (
             <Box sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>New Operation</Typography>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                New Operation
+              </Typography>
 
               <TextField
                 label="Key"
@@ -217,23 +233,39 @@ export default function ReadPage() {
                 sx={{ mb: 2 }}
               />
 
+              <TextField
+                label="Value (for write)"
+                value={newOpValue}
+                onChange={(e) => setNewOpValue(e.target.value)}
+                fullWidth
+                sx={{ mb: 2 }}
+              />
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel id="op-type-label">Type</InputLabel>
+                <Select
+                  labelId="op-type-label"
+                  value={newOpType}
+                  label="Type"
+                  onChange={(e) => setNewOpType(e.target.value)}
+                  sx={{textAlign: "left"}}
+                >
+                  <MenuItem value="write">Write</MenuItem>
+                  <MenuItem value="delete">Delete</MenuItem>
+                </Select>
+              </FormControl>
+
               <Button variant="contained" onClick={addCannedOperation}>
                 Save
               </Button>
 
-              <Button
-                variant="text"
-                sx={{ ml: 2 }}
-                onClick={() => setShowAddOp(false)}
-              >
+              <Button variant="text" sx={{ ml: 2 }} onClick={() => setShowAddOp(false)}>
                 Cancel
               </Button>
             </Box>
           )}
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            Canned Operations
-          </Typography>
 
+          {/* Canned Operations Table */}
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
@@ -241,6 +273,8 @@ export default function ReadPage() {
                   <TableCell>#</TableCell>
                   <TableCell>Key</TableCell>
                   <TableCell>Directory</TableCell>
+                  <TableCell>Value</TableCell>
+                  <TableCell>Type</TableCell>
                   <TableCell>Action</TableCell>
                 </TableRow>
               </TableHead>
@@ -251,11 +285,13 @@ export default function ReadPage() {
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{op.key}</TableCell>
                     <TableCell>{op.directory}</TableCell>
+                    <TableCell>{op.value}</TableCell>
+                    <TableCell>{op.type}</TableCell>
                     <TableCell>
                       <Button
                         variant="outlined"
                         sx={{ mr: 1 }}
-                        onClick={() => handleExecute(op.key, op.directory)}
+                        onClick={() => handleExecute(op)}
                       >
                         Execute
                       </Button>
@@ -277,16 +313,14 @@ export default function ReadPage() {
         </Grid>
 
         {/* Right Column */}
-        <Grid item xs={12} md={6}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Grid item xs={12} md={6} sx={{ width: "45%" }}>
+          {/* History */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
             <Typography variant="h6">History (last 5)</Typography>
             <Button variant="outlined" color="error" onClick={clearHistory}>
               Clear
             </Button>
           </Box>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            History (last 5)
-          </Typography>
 
           <TableContainer component={Paper} sx={{ mb: 3 }}>
             <Table>
@@ -295,6 +329,7 @@ export default function ReadPage() {
                   <TableCell>Key</TableCell>
                   <TableCell>Value</TableCell>
                   <TableCell>Directory</TableCell>
+                  <TableCell>Type</TableCell>
                   <TableCell>Timestamp</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
@@ -306,6 +341,7 @@ export default function ReadPage() {
                     <TableCell>{row.key}</TableCell>
                     <TableCell>{row.value}</TableCell>
                     <TableCell>{row.directory}</TableCell>
+                    <TableCell>{row.type}</TableCell>
                     <TableCell>{row.timestamp}</TableCell>
                     <TableCell>{row.status}</TableCell>
                   </TableRow>
@@ -314,15 +350,14 @@ export default function ReadPage() {
 
             </Table>
           </TableContainer>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography variant="h6">History (last 5)</Typography>
+
+          {/* Frequency */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+            <Typography variant="h6">Frequency (top 5)</Typography>
             <Button variant="outlined" color="error" onClick={clearFrequency}>
               Clear
             </Button>
           </Box>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            Frequency Table (top 5)
-          </Typography>
 
           <TableContainer component={Paper}>
             <Table>
