@@ -31,25 +31,19 @@ public class AuthHandler implements MessageHandler {
         AuthResponse handle(AuthRequest request);
     }
 
-    public AuthHandler(AuthRepository authRepository, PasswordHasher passwordHasher, GoogleIdTokenVerifier verifier, SessionManager sessionManager) {
-        if (authRepository == null) {
-            throw new IllegalArgumentException("AuthRepository cannot be null");
+    private static <T> T requireNonNull(T value, String name) {
+        if (value == null) {
+            throw new IllegalArgumentException(name + " cannot be null");
         }
-        if (passwordHasher == null) {
-            throw new IllegalArgumentException("PasswordHasher cannot be null");
-        }
-        if (verifier == null) {
-            throw new IllegalArgumentException("GoogleIdTokenVerifiter cannot be null");
-        }
-        if (sessionManager == null) {
-            throw new IllegalArgumentException("SessionManager cannot be null");
-        }
+        return value;
+    }
 
-        this.authRepository = authRepository;
-        this.passwordHasher = passwordHasher;
-        this.verifier = verifier;
+    public AuthHandler(AuthRepository authRepository, PasswordHasher passwordHasher, GoogleIdTokenVerifier verifier, SessionManager sessionManager) {
+        this.authRepository = requireNonNull(authRepository, "AuthRepository");
+        this.passwordHasher = requireNonNull(passwordHasher, "PasswordHasher");
+        this.verifier = requireNonNull(verifier, "GoogleIdTokenVerifier");
+        this.sessionManager = requireNonNull(sessionManager, "SessionManager");
         this.operationHandlers = initializeOperationHandlers();
-        this.sessionManager = sessionManager;
 
         LOG.info("AuthHandler initialized successfully");
     }
@@ -336,7 +330,7 @@ public class AuthHandler implements MessageHandler {
             }
            sessionManager.createSession(email, sessionToken);
 
-            LOG.info("Successfully logged in user: {} with token: {}", EmailUtils.maskEmail(email), sessionToken);
+            LOG.info("Successfully logged in user: {}", EmailUtils.maskEmail(email));
 
             UserInfo userInfo = convertToUserInfo(user);
             return AuthResponse.newBuilder()

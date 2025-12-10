@@ -48,7 +48,7 @@ public class SessionManager {
         }
 
         Session session = sessionOpt.get();
-//        if (!session.getIsValid()) return false;
+        if (!session.getIsValid()) return false;
 
         //TODO: research about another way instead of using currentTime
         long now = System.currentTimeMillis();

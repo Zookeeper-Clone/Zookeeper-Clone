@@ -28,13 +28,13 @@ public class SessionRepository {
             throw new IllegalArgumentException("Session cannot be null");
         }
         String token = session.getSessionToken();
-        LOG.info("Saving session: {}", token);
+        LOG.info("Saving session with token hash: {}", token.hashCode());
         try {
             byte[] key = tokenToKey(token);
             byte[] value = session.toByteArray();
             database.put(key, value, SESSION_DIRECTORY);
         } catch (Exception e) {
-            LOG.error("Failed to save session: {}", token, e);
+            LOG.error("Failed to save session", e);
             throw new RuntimeException("Failed to save session", e);
         }
     }
@@ -52,10 +52,10 @@ public class SessionRepository {
             }
             return Optional.of(Session.parseFrom(value));
         } catch (InvalidProtocolBufferException e) {
-            LOG.error("Corrupted session data for: {}", token, e);
+            LOG.error("Corrupted session data", e);
             return Optional.empty();
         } catch (Exception e) {
-            LOG.error("Failed to retrieve session: {}", token, e);
+            LOG.error("Failed to retrieve session", e);
             throw new RuntimeException("Failed to retrieve session", e);
         }
     }
@@ -64,12 +64,12 @@ public class SessionRepository {
         if (token == null || token.isEmpty()) {
             return;
         }
-        LOG.info("Deleting session: {}", token);
+        LOG.info("Deleting session with token hash: {}", token.hashCode());
         try {
             byte[] key = tokenToKey(token);
             database.delete(key, SESSION_DIRECTORY);
         } catch (Exception e) {
-            LOG.error("Failed to delete session: {}", token, e);
+            LOG.error("Failed to delete session", e);
             throw new RuntimeException("Failed to delete session", e);
         }
     }
