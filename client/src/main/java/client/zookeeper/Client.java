@@ -14,5 +14,6 @@ public class Client {
                                     .build();
         ZookeeperClient client = new ZookeeperClient(raftClient);
         System.out.println(client.write("nasr","value1").getValue());
+        System.out.println(client.register("abdoahlawy6161@gmail.com", "johncena123"));
     }
 }
