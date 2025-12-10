@@ -124,7 +124,6 @@ export default function EditPage() {
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 5);
 
-  // ------------- WRITE / DELETE LOGIC -------------
   const sendCommand = async (commandType, key, directory, value) => {
     const timestamp = new Date().toISOString();
     const payload = { key, directory, value };

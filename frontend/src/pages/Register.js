@@ -9,6 +9,7 @@ import {
   Link,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { loadSession } from "../functions/loadSession";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -73,6 +74,8 @@ export default function Register() {
 
     sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
 
+    loadSession()
+    
     navigate("/home");
   } catch (err) {
     console.error(err);

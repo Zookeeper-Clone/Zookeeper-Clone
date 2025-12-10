@@ -9,6 +9,7 @@ import {
   Link,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { loadSession } from "../functions/loadSession";
 
 export default function SignIn() {
   const [errorMessage, setErrorMessage] = useState("");
@@ -52,7 +53,8 @@ export default function SignIn() {
 
       sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
 
-      // Navigate to protected page
+      loadSession()
+
       navigate("/home");
     } catch (err) {
       console.error(err);
