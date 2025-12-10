@@ -6,8 +6,13 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ZookeeperService {
+
+    private final ZookeeperClient zookeeperClient;
+
     @Autowired
-    private ZookeeperClient zookeeperClient;
+    public ZookeeperService(ZookeeperClient zookeeperClient) {
+        this.zookeeperClient = zookeeperClient;
+    }
 
     public void setToken(String token){
         zookeeperClient.setSessionToken(token);

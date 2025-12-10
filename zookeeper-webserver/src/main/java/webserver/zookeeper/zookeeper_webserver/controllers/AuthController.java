@@ -13,11 +13,14 @@ import webserver.zookeeper.zookeeper_webserver.dto.auth.AuthResult;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.LoginRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.RegisterRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.services.AuthService;
+import webserver.zookeeper.zookeeper_webserver.services.ZookeeperService;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
 
+    @Autowired
+    private ZookeeperService zookeeperService;
     @Autowired
     private AuthService auth;
 
@@ -32,7 +35,7 @@ public ResponseEntity<?> register(@RequestBody RegisterRequestDTO dto, HttpServl
 
     // Set session token as HTTP-only cookie
         addCookie(response, result);
-
+        zookeeperService.setToken(result.sessionToken());
         return ResponseEntity.ok("Registered successfully");
 }
 
@@ -46,7 +49,7 @@ public ResponseEntity<?> login(@RequestBody LoginRequestDTO dto, HttpServletResp
 
     // Set session token as HTTP-only cookie
     addCookie(response, result);
-
+    zookeeperService.setToken(result.sessionToken());
     return ResponseEntity.ok("Logged in successfully");
 }
 
@@ -56,6 +59,7 @@ public ResponseEntity<?> login(@RequestBody LoginRequestDTO dto, HttpServletResp
         cookie.setPath("/");
         cookie.setMaxAge(60 * 60); // 1 hour
         response.addCookie(cookie);
+
     }
 
     // LOGIN FLOW

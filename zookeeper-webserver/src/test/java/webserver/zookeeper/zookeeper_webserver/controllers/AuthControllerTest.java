@@ -17,6 +17,7 @@ import webserver.zookeeper.zookeeper_webserver.dto.auth.AuthResult;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.LoginRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.RegisterRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.services.AuthService;
+import webserver.zookeeper.zookeeper_webserver.services.ZookeeperService;
 
 public class AuthControllerTest {
 
@@ -24,6 +25,9 @@ public class AuthControllerTest {
 
     @Mock
     private AuthService authService;
+
+    @Mock
+    private ZookeeperService zookeeperService;
 
     @InjectMocks
     private AuthController authController;
@@ -36,10 +40,8 @@ public class AuthControllerTest {
 
     @Test
     void testRegisterSuccess() throws Exception {
-        RegisterRequestDTO dto = new RegisterRequestDTO("test@example.com", "Password123");
         AuthResult result = new AuthResult(true, "Success", "token123");
-
-        when(authService.register(dto.email(), dto.password())).thenReturn(result);
+        when(authService.register(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -47,28 +49,28 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("SESSION_TOKEN", "token123"))
                 .andExpect(content().string("Registered successfully"));
+
+        verify(zookeeperService).setToken("token123");
     }
 
     @Test
     void testRegisterFailure() throws Exception {
-        RegisterRequestDTO dto = new RegisterRequestDTO("test@example.com", "Password123");
         AuthResult result = new AuthResult(false, "Email exists", null);
-
-        when(authService.register(dto.email(), dto.password())).thenReturn(result);
+        when(authService.register(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Email exists"));
+
+        verify(zookeeperService, never()).setToken(any());
     }
 
     @Test
     void testLoginSuccess() throws Exception {
-        LoginRequestDTO dto = new LoginRequestDTO("test@example.com", "Password123");
         AuthResult result = new AuthResult(true, "Success", "token456");
-
-        when(authService.login(dto.email(), dto.password())).thenReturn(result);
+        when(authService.login(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,20 +78,22 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("SESSION_TOKEN", "token456"))
                 .andExpect(content().string("Logged in successfully"));
+
+        verify(zookeeperService).setToken("token456");
     }
 
     @Test
     void testLoginFailure() throws Exception {
-        LoginRequestDTO dto = new LoginRequestDTO("test@example.com", "Password123");
         AuthResult result = new AuthResult(false, "Invalid credentials", null);
-
-        when(authService.login(dto.email(), dto.password())).thenReturn(result);
+        when(authService.login(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Invalid credentials"));
+
+        verify(zookeeperService, never()).setToken(any());
     }
 
     @Test
