@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import webserver.zookeeper.zookeeper_webserver.services.QueryService;
+import webserver.zookeeper.zookeeper_webserver.services.ZookeeperService;
 
 @RestController
 @RequestMapping("/query")
@@ -26,17 +27,35 @@ public class QueryController {
     public static class DeleteRequest extends Request{}
     @Autowired
     private QueryService queryService;
-
+    @Autowired
+    private ZookeeperService zookeeperService;
     @PostMapping("/read")
-    public ResponseEntity<String> read(@RequestBody ReadRequest readRequest){
+    public ResponseEntity<String> read(
+            @CookieValue("SESSION_TOKEN") String sessionToken,
+            @RequestBody ReadRequest readRequest
+    ) {
+        System.out.println(sessionToken);
+        zookeeperService.setToken(sessionToken);
         return queryService.read(readRequest);
     }
+
     @PostMapping("/write")
-    public ResponseEntity<String> write(@RequestBody WriteRequest writeRequest){
+    public ResponseEntity<String> write(
+            @CookieValue("SESSION_TOKEN") String sessionToken,
+            @RequestBody WriteRequest writeRequest
+    ) {
+        System.out.println(sessionToken);
+        zookeeperService.setToken(sessionToken);
         return queryService.write(writeRequest);
     }
+
     @PostMapping("/delete")
-    public ResponseEntity<String> delete(@RequestBody DeleteRequest deleteRequest){
+    public ResponseEntity<String> delete(
+            @CookieValue("SESSION_TOKEN") String sessionToken,
+            @RequestBody DeleteRequest deleteRequest
+    ) {
+        System.out.println(sessionToken);
+        zookeeperService.setToken(sessionToken);
         return queryService.delete(deleteRequest);
     }
 }

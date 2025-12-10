@@ -32,8 +32,7 @@ public class SecurityConfig {
                 .cors(c -> c.configurationSource(corsConfig()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest().permitAll())
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
 
@@ -62,7 +61,7 @@ public class SecurityConfig {
                             cookie.setMaxAge(60 * 60); // 1 hour expiration
                             response.addCookie(cookie);
 
-                            response.sendRedirect("http://localhost:3000/");
+                            response.sendRedirect("http://localhost:3000/auth/callback");
                         }));
 
         return http.build();

@@ -148,9 +148,11 @@ public class AuthHandler implements MessageHandler {
 
             LOG.info("Successfully registered user: {}", EmailUtils.maskEmail(email));
 
+            String sessionToken = generateSessionToken();
             UserInfo userInfo = convertToUserInfo(userAuth);
             return AuthResponse.newBuilder()
                     .setSuccess(true)
+                    .setSessionToken(sessionToken)
                     .setErrorMessage("")
                     .setUserInfo(userInfo)
                     .build();

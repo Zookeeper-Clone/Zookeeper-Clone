@@ -1,17 +1,15 @@
 package webserver.zookeeper.zookeeper_webserver.controllers;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import webserver.zookeeper.zookeeper_webserver.dto.auth.AuthResult;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.LoginRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.RegisterRequestDTO;
 import webserver.zookeeper.zookeeper_webserver.services.AuthService;
@@ -33,13 +31,9 @@ public ResponseEntity<?> register(@RequestBody RegisterRequestDTO dto, HttpServl
     }
 
     // Set session token as HTTP-only cookie
-    Cookie cookie = new Cookie("SESSION_TOKEN", result.sessionToken());
-    cookie.setHttpOnly(true);
-    cookie.setPath("/");
-    cookie.setMaxAge(60 * 60); // 1 hour
-    response.addCookie(cookie);
+        addCookie(response, result);
 
-    return ResponseEntity.ok("Registered successfully");
+        return ResponseEntity.ok("Registered successfully");
 }
 
 @PostMapping("/login")
@@ -51,19 +45,29 @@ public ResponseEntity<?> login(@RequestBody LoginRequestDTO dto, HttpServletResp
     }
 
     // Set session token as HTTP-only cookie
-    Cookie cookie = new Cookie("SESSION_TOKEN", result.sessionToken());
-    cookie.setHttpOnly(true);
-    cookie.setPath("/");
-    cookie.setMaxAge(60 * 60); // 1 hour
-    response.addCookie(cookie);
+    addCookie(response, result);
 
     return ResponseEntity.ok("Logged in successfully");
 }
+
+    private static void addCookie(HttpServletResponse response, AuthResult result) {
+        Cookie cookie = new Cookie("SESSION_TOKEN", result.sessionToken());
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(60 * 60); // 1 hour
+        response.addCookie(cookie);
+    }
+
     // LOGIN FLOW
     @GetMapping("/google/login")
     public void googleLogin(HttpServletResponse response) throws IOException {
         System.out.println("redirected user");
         response.sendRedirect("/oauth2/authorization/google");
     }
-
+    @GetMapping("/me")
+    public Map<String, String> getToken(@CookieValue("SESSION_TOKEN") String token){
+        return Map.of(
+                "token", token
+        );
+    }
 }

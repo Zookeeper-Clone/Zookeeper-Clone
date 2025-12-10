@@ -26,6 +26,9 @@ public class ZookeeperClient {
     private final RaftClient raftClient;
     private String sessionToken;
 
+    public void setSessionToken(String token){
+        sessionToken = token;
+    }
     public ZookeeperClient(RaftClient raftClient) {
         this.raftClient = raftClient;
         this.sessionToken = null;
