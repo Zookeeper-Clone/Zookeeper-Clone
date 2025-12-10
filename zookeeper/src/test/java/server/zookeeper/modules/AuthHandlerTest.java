@@ -189,12 +189,14 @@ class AuthHandlerTest {
         when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.of(userAuth));
         when(passwordHasher.verifyPassword(CURRENT_PASSWORD, CURRENT_HASH)).thenReturn(true);
         String expectedToken = "session-token-123";
-        when(sessionManager.createSession(VALID_EMAIL)).thenReturn(expectedToken);
+
+        when(sessionManager.createSession(eq(VALID_EMAIL), eq(expectedToken))).thenReturn(expectedToken);
 
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.LOGIN)
                 .setEmail(VALID_EMAIL)
                 .setPassword(CURRENT_PASSWORD)
+                .setSessionToken(expectedToken) // simulate leader injecting the token
                 .build();
 
         Message response = authHandler.handle(request.toByteArray(), false);
@@ -208,8 +210,7 @@ class AuthHandlerTest {
 
         verify(authRepository).getUserByEmail(VALID_EMAIL);
         verify(passwordHasher).verifyPassword(CURRENT_PASSWORD, CURRENT_HASH);
-        verify(sessionManager).createSession(VALID_EMAIL);
-    }
+        verify(sessionManager).createSession(VALID_EMAIL, expectedToken);    }
 
     @Test
     @DisplayName("Should fail login with non-existent user")
@@ -486,6 +487,7 @@ class AuthHandlerTest {
     @DisplayName("Should successfully login via OAuth")
     void shouldSuccessfullyLoginOAuth() throws Exception {
         String tokenString = "valid-google-token";
+        String expectedToken = "new-session-token";
 
         // Mock Token
         GoogleIdToken mockToken = mock(GoogleIdToken.class);
@@ -504,9 +506,10 @@ class AuthHandlerTest {
                 .setOperation(AuthOperationType.LOGIN_OAUTH)
                 .setEmail(VALID_EMAIL)
                 .setGoogleToken(tokenString)
+                .setSessionToken(expectedToken)
                 .build();
 
-        when(sessionManager.createSession(VALID_EMAIL)).thenReturn("new-session-token");
+        when(sessionManager.createSession(eq(VALID_EMAIL), eq(expectedToken))).thenReturn(expectedToken);
         Message response = authHandler.handle(request.toByteArray(), true);
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 

@@ -329,11 +329,15 @@ public class AuthHandler implements MessageHandler {
                 LOG.warn("Login failed: Invalid password for: {}", EmailUtils.maskEmail(email));
                 return createErrorAuthResponse("Invalid email or password");
             }
+            //* use the session token injected by the leader in startTransaction
+            String sessionToken = request.getSessionToken();
+            if (sessionToken.isEmpty()) {
+                LOG.error("Session token missing in login request for: {}, using random generated token", EmailUtils.maskEmail(email));
+                sessionToken = UUID.randomUUID().toString();
+            }
+           sessionManager.createSession(email, sessionToken);
 
-            // TODO: Implement proper session management
-            String sessionToken = sessionManager.createSession(email);
-
-            LOG.info("Successfully logged in user: {}", EmailUtils.maskEmail(email));
+            LOG.info("Successfully logged in user: {} with token: {}", EmailUtils.maskEmail(email), sessionToken);
 
             UserInfo userInfo = convertToUserInfo(user);
             return AuthResponse.newBuilder()
@@ -365,7 +369,14 @@ public class AuthHandler implements MessageHandler {
             }
 
             UserAuth userAuth = userOptional.get();
-            String sessionToken = sessionManager.createSession(email);
+
+            //* use the session token injected by the leader in startTransaction
+            String sessionToken = request.getSessionToken();
+            if (sessionToken.isEmpty()) {
+                LOG.error("Session token missing in login request for: {}, using random generated token", EmailUtils.maskEmail(email));
+                sessionToken = UUID.randomUUID().toString();
+            }
+            sessionManager.createSession(email, sessionToken);
 
             LOG.info("Successfully logged in OAUTH user: {}", EmailUtils.maskEmail(email));
             UserInfo userInfo = convertToUserInfo(userAuth);
@@ -384,6 +395,7 @@ public class AuthHandler implements MessageHandler {
 
     private AuthResponse handleHeartbeat(AuthRequest request) {
         String token = request.getSessionToken();
+        LOG.info("Processing HEARTBEAT for session token: {}", token);
         if (sessionManager.validateSession(token)) {
             sessionManager.refreshSession(token);
             return AuthResponse.newBuilder().setSuccess(true).build();

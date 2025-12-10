@@ -20,7 +20,7 @@ public class Client {
         ZookeeperClient.AuthenticationResult result = client.login("admin@admin.com","adminpass22");
         System.out.println("received token: " + result.getSessionToken().orElseGet("no token found"::toString));
         System.out.println(client.write("nasr","value1").getValue());
-        System.out.println("reading written value after login" + client.read("nasr").getValue());
+        System.out.println("reading written value after login: " + client.read("nasr").getValue());
 
     }
 }

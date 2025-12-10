@@ -40,7 +40,7 @@ public class ZookeeperClient implements AutoCloseable {
     public AuthenticationResult login(String email, String password) {
         AuthRequest authRequest = RequestFactory.buildAuthRequest(
                 AuthOperationType.LOGIN, email, password, sessionManager.getToken());
-        AuthenticationResult result = sendAuthRequest(authRequest, true);
+        AuthenticationResult result = sendAuthRequest(authRequest, false);
 
         if (result.isSuccess() && result.getSessionToken().isPresent()) {
             sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
@@ -58,7 +58,7 @@ public class ZookeeperClient implements AutoCloseable {
     public AuthenticationResult loginOAuth(String email, String OAuthToken) {
         AuthRequest authRequest = RequestFactory.buildOAuthRequest(
                 AuthOperationType.LOGIN_OAUTH, email, OAuthToken, sessionManager.getToken());
-        AuthenticationResult result = sendAuthRequest(authRequest, true);
+        AuthenticationResult result = sendAuthRequest(authRequest, false);
 
         if (result.isSuccess() && result.getSessionToken().isPresent()) {
             sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
@@ -113,6 +113,7 @@ public class ZookeeperClient implements AutoCloseable {
             MessageWrapper wrapper = MessageWrapper.newBuilder()
                     .setType(type)
                     .setPayload(request.toByteString())
+                    .setSessionToken(sessionManager.getToken().orElseGet(String::new))
                     .build();
             Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
 

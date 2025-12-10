@@ -49,21 +49,7 @@ public class MessageRouter {
 
     public Message route(byte[] payload, boolean isMutation) {
         try {
-            // Try to detect message format
-            MessageType messageType = detectMessageType(payload);
-
-            LOG.debug("Detected message format: {}", messageType);
-
-            switch (messageType) {
-                case AUTH:
-                    LOG.info("MESSAGE IS AUTH MESSAGE");
-                case QUERY:
-                    LOG.info("MESSAGE IS QUERY MESSAGE");
-                    return routeMessage(payload, isMutation);
-                default:
-                    return createErrorResponse("Unknown message type");
-            }
-
+            return routeMessage(payload, isMutation);
         } catch (Exception e) {
             LOG.error("Error routing message", e);
             return createErrorResponse("Failed to route message: " + e.getMessage());
@@ -90,6 +76,7 @@ public class MessageRouter {
             MessageType messageType = wrapper.getType();
             byte[] innerPayload = wrapper.getPayload().toByteArray();
             String sessionToken = wrapper.getSessionToken();
+            LOG.info("routeMessage - received message of type: {}", messageType);
             if (requiresAuthentication(messageType)) {
                 if (!sessionManager.validateSession(sessionToken)) {
                     LOG.warn("Unauthorized access attempt. Type: {}", messageType);
