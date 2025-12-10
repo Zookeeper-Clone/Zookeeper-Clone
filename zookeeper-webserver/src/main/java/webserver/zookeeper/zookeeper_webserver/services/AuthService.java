@@ -11,8 +11,8 @@ public class AuthService {
     @Autowired
     private final ZookeeperClient zookeeperClient;
 
-    public AuthService(ZookeeperClient zkClient) {
-        this.zookeeperClient = zkClient;
+    public AuthService(ZookeeperClient zookeeperClient) {
+        this.zookeeperClient = zookeeperClient;
     }
 
     public AuthResult register(String email, String password) {
@@ -22,16 +22,6 @@ public class AuthService {
 
     public AuthResult login(String email, String password) {
         var result = zookeeperClient.login(email, password);
-        return toAuthResult(result);
-    }
-
-    public AuthResult registerOAuth(String email, String token) {
-        var result = zookeeperClient.registerOAuth(email, token);
-        return toAuthResult(result);
-    }
-
-    public AuthResult loginOAuth(String email, String token) {
-        var result = zookeeperClient.loginOAuth(email, token);
         return toAuthResult(result);
     }
 

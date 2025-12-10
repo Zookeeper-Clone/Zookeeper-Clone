@@ -45,30 +45,4 @@ public class AuthController {
                 }
         );
     }
-
-    @PostMapping("/oauth/register")
-    public ResponseEntity<?> registerOAuth(@RequestBody RegisterOAuthRequestDTO dto) {
-        var result = auth.registerOAuth(dto.email(), dto.token());
-
-        if (!result.success()) {
-            return ResponseEntity.badRequest().body(result.message());
-        }
-
-        return ResponseEntity.ok("Registered via OAuth");
-    }
-
-    @PostMapping("/oauth/login")
-    public ResponseEntity<?> loginOAuth(@RequestBody LoginOAuthRequestDTO dto) {
-        var result = auth.loginOAuth(dto.email(), dto.token());
-
-        if (!result.success()) {
-            return ResponseEntity.badRequest().body(result.message());
-        }
-
-        return ResponseEntity.ok(
-                new Object() {
-                    public final String token = result.sessionToken();
-                }
-        );
-    }
 }
