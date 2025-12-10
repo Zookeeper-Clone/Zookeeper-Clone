@@ -41,64 +41,49 @@ export default function Register() {
 
   // Basic register
   const handleBasicRegister = async (e) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setPasswordError("");
+  e.preventDefault();
+  setErrorMessage("");
+  setPasswordError("");
 
-    if (!validatePasswords()) return;
+  // Stop if passwords don't match or fail validation
+  if (!validatePasswords()) return;
 
-    const form = new FormData(e.target);
-    const email = form.get("email");
+  const form = new FormData(e.target);
+  const email = form.get("email");
+  const password = form.get("password"); // make sure to get password here
 
-    try {
-      const response = await fetch("http://localhost:8080/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    const response = await fetch("http://localhost:8080/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      credentials: "include", 
+    });
 
-      if (!response.ok) {
-        const raw = await response.text();
-        setErrorMessage(getReadableError(response.status, raw));
-        return;
-      }
-
-      const data = await response.json();
-      sessionStorage.setItem("sessionToken", data.token);
-
-      navigate("/home"); // ⬅️ redirect via React Router
-    } catch {
-      setErrorMessage("Network error. Please try again.");
+    if (!response.ok) {
+      const raw = await response.text();
+      setErrorMessage(getReadableError(response.status, raw));
+      return;
     }
-  };
+    console.log(response)
+    const body = await response.text();
+    console.log("Register response:", body); 
 
-  // OAuth register (MOCK)
+    localStorage.setItem("auth", "true");
+
+    sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
+
+    navigate("/home");
+  } catch (err) {
+    console.error(err);
+    setErrorMessage("Network error. Please try again.");
+  }
+};
+
+
   const handleOAuthRegister = async () => {
-    setErrorMessage("");
-
-    try {
-      const email = "google@example.com";
-      const token = "GOOGLE_OAUTH_TOKEN";
-
-      const response = await fetch("http://localhost:8080/auth/registerOAuth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, token }),
-      });
-
-      if (!response.ok) {
-        const raw = await response.text();
-        setErrorMessage(getReadableError(response.status, raw));
-        return;
-      }
-
-      const data = await response.json();
-      sessionStorage.setItem("sessionToken", data.token);
-
-      navigate("/home");
-    } catch {
-      setErrorMessage("Network error. Please try again.");
-    }
+    // Redirect the browser to your backend OAuth endpoint
+    window.location.href = "http://localhost:8080/auth/google/login?from=google";
   };
 
   return (

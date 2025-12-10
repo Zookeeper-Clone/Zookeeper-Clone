@@ -3,6 +3,7 @@ import SignIn from "./pages/SignIn";
 import Register from "./pages/Register";
 import Home from "./pages/Home";
 import ProtectedRoute from "./ProtectedRoute";
+import AuthCallback from "./pages/AuthCallbackPage";
 
 export default function App() {
   return (
@@ -11,7 +12,7 @@ export default function App() {
         <Route index element={<SignIn />} />
         <Route path="/login" element={<SignIn />} />
         <Route path="/register" element={<Register />} />
-
+        <Route path="/auth/callback" element={<AuthCallback />} />
         {/* PROTECTED ROUTE */}
         <Route
           path="/home"

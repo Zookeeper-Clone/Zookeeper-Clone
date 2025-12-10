@@ -138,6 +138,7 @@ export default function EditPage() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
+      credentials: "include"
     });
 
     pushHistory({

@@ -123,7 +123,8 @@ export default function ReadPage() {
     const response = await fetch("http://localhost:8080/query/read", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      credentials: "include"
     });
 
     const timestamp = new Date().toISOString();

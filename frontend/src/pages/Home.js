@@ -69,11 +69,11 @@ DemoPageContent.propTypes = {
   pathname: PropTypes.string.isRequired,
 };
 
+
 function Home(props) {
   const { window } = props;
 
   const router = useDemoRouter('read');
-
   const demoWindow = window !== undefined ? window() : undefined;
 
   return (
@@ -85,7 +85,7 @@ function Home(props) {
         window={demoWindow}
         branding={{
           title : "Zookeeper",
-          logo: <img src='/zookeeper.png'></img>
+          logo: <img src='/zookeeper.png' alt="logo" />,
         }}
       >
         <DashboardLayout>
@@ -95,6 +95,7 @@ function Home(props) {
     </DemoProvider>
   );
 }
+
 
 
 export default Home;

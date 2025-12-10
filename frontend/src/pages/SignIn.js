@@ -36,6 +36,7 @@ export default function SignIn() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+        credentials: "include", // <-- important to store cookie
       });
 
       if (!response.ok) {
@@ -44,44 +45,25 @@ export default function SignIn() {
         return;
       }
 
-      const data = await response.json();
+      const body = await response.text();
+      console.log("Login response:", body);
 
-      // Save auth token
-      sessionStorage.setItem("sessionToken", data.token);
       localStorage.setItem("auth", "true");
 
+      sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
+
+      // Navigate to protected page
       navigate("/home");
-    } catch {
+    } catch (err) {
+      console.error(err);
       setErrorMessage("Network error. Please try again.");
     }
   };
 
   // OAuth login (MOCK)
-  const handleGoogleLogin = async () => {
-    setErrorMessage("");
-
-    try {
-      // Simulated Google login
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const googleEmail = "google.user@example.com";
-
-      // Mock add user if doesn't exist
-      const users = JSON.parse(sessionStorage.getItem("mockUsers") || "{}");
-      if (!users[googleEmail]) {
-        users[googleEmail] = { provider: "google" };
-        sessionStorage.setItem("mockUsers", JSON.stringify(users));
-      }
-
-      // Store mock token + auth
-      sessionStorage.setItem("sessionToken", "google-token-" + Date.now());
-      sessionStorage.setItem("currentUser", googleEmail);
-      localStorage.setItem("auth", "true");
-
-      navigate("/home");
-    } catch {
-      setErrorMessage("Google login failed. Try again.");
-    }
+  const handleGoogleLogin = () => {
+  // Redirect the browser to your backend OAuth endpoint
+  window.location.href = "http://localhost:8080/auth/google/login?from=google";
   };
 
   return (
