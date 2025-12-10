@@ -33,17 +33,17 @@ public class SessionManager {
                 .build();
 
         sessionRepository.saveSession(session);
-        LOG.info("Created new session for user {}: {}", userEmail, token);
+        LOG.debug("Created new session for user {}: {}", userEmail, token);
         return token;
     }
 
     public boolean validateSession(String token) {
-        LOG.info("Validating session with token {}", token);
+        LOG.debug("Validating session with token {}", token);
         if (token == null || token.isEmpty()) return false;
 
         Optional<Session> sessionOpt = sessionRepository.getSession(token);
         if (sessionOpt.isEmpty()) {
-            LOG.info("Session with token {} not found", token);
+            LOG.debug("Session with token {} not found", token);
             return false;
         }
 
@@ -53,7 +53,7 @@ public class SessionManager {
         //TODO: research about another way instead of using currentTime
         long now = System.currentTimeMillis();
         if (now - session.getLastHeartbeatTime() > SESSION_TIMEOUT_MS) {
-            LOG.info("Session with token {} has expired", token);
+            LOG.debug("Session with token {} has expired", token);
             invalidateSession(token);
             return false;
         }

@@ -69,7 +69,7 @@ public class AuthRepository {
             }
 
             UserAuth user = UserAuth.parseFrom(value);
-            LOG.debug("Successfully retrieved user: {}", EmailUtils.maskEmail(email));
+            LOG.info("Successfully retrieved user: {}", EmailUtils.maskEmail(email));
             return Optional.of(user);
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Corrupted user data for: {}", EmailUtils.maskEmail(email), e);

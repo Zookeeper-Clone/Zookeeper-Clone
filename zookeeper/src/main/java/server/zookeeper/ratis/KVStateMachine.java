@@ -125,20 +125,20 @@ public class KVStateMachine extends BaseStateMachine {
         try {
             MessageWrapper wrapper = MessageWrapper.parseFrom(content.toByteArray());
             if (wrapper.getType() != MessageType.AUTH) {
-                LOG.info("Non-AUTH message received, passing through unmodified");
+                LOG.debug("Non-AUTH message received, passing through unmodified");
                 return super.startTransaction(request);
             }
 
             AuthRequest authRequest = AuthRequest.parseFrom(wrapper.getPayload());
             if (!(authRequest.getOperation() == AuthOperationType.LOGIN ||
                     authRequest.getOperation() == AuthOperationType.LOGIN_OAUTH)) {
-                LOG.info("AUTH operation is not LOGIN, passing through unmodified");
+                LOG.debug("AUTH operation is not LOGIN, passing through unmodified");
                 return super.startTransaction(request);
             }
 
             // Intercept LOGIN operations to inject a deterministic Session Token
             String preGeneratedToken = UUID.randomUUID().toString();
-            LOG.info("Leader generating session token: {}", preGeneratedToken);
+            LOG.debug("Leader generating session token: {}", preGeneratedToken);
 
             AuthRequest.Builder authBuilder = authRequest.toBuilder()
                     .setSessionToken(preGeneratedToken);

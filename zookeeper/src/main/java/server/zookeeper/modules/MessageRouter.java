@@ -76,7 +76,7 @@ public class MessageRouter {
             MessageType messageType = wrapper.getType();
             byte[] innerPayload = wrapper.getPayload().toByteArray();
             String sessionToken = wrapper.getSessionToken();
-            LOG.info("routeMessage - received message of type: {}", messageType);
+            LOG.debug("routeMessage - received message of type: {}", messageType);
             if (requiresAuthentication(messageType)) {
                 if (!sessionManager.validateSession(sessionToken)) {
                     LOG.warn("Unauthorized access attempt. Type: {}", messageType);
@@ -91,7 +91,7 @@ public class MessageRouter {
                 LOG.warn("No handler registered for message type: {}", messageType);
                 return createErrorResponse("No handler for message type: " + messageType);
             }
-            LOG.info("routeMessage - routing to {}", handler.getHandlerType());
+            LOG.debug("routeMessage - routing to {}", handler.getHandlerType());
             return handler.handle(innerPayload, isMutation);
 
         } catch (InvalidProtocolBufferException e) {

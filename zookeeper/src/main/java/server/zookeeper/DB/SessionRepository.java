@@ -20,7 +20,7 @@ public class SessionRepository {
             throw new IllegalArgumentException("Database cannot be null");
         }
         this.database = database;
-        LOG.info("SessionRepository initialized with column family: {}", SESSION_DIRECTORY);
+        LOG.debug("SessionRepository initialized with column family: {}", SESSION_DIRECTORY);
     }
 
     public void saveSession(Session session) {
@@ -28,7 +28,7 @@ public class SessionRepository {
             throw new IllegalArgumentException("Session cannot be null");
         }
         String token = session.getSessionToken();
-        LOG.debug("Saving session: {}", token);
+        LOG.info("Saving session: {}", token);
         try {
             byte[] key = tokenToKey(token);
             byte[] value = session.toByteArray();
@@ -64,7 +64,7 @@ public class SessionRepository {
         if (token == null || token.isEmpty()) {
             return;
         }
-        LOG.debug("Deleting session: {}", token);
+        LOG.info("Deleting session: {}", token);
         try {
             byte[] key = tokenToKey(token);
             database.delete(key, SESSION_DIRECTORY);

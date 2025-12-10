@@ -201,7 +201,6 @@ public class AuthHandler implements MessageHandler {
 
     private AuthResponse handleLogout(AuthRequest request) {
         LOG.debug("Processing LOGOUT request");
-        // TODO: Implement session invalidation when session management is added
         sessionManager.invalidateSession(request.getSessionToken());
         return AuthResponse.newBuilder()
                 .setSuccess(true)
