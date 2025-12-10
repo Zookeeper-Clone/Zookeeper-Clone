@@ -27,7 +27,7 @@ public class ZookeeperClient implements AutoCloseable {
     private final SessionManager sessionManager;
 
     public void setSessionToken(String token){
-        sessionToken = token;
+        sessionManager.startSession(token,this::sendHeartbeat);
     }
     public ZookeeperClient(RaftClient raftClient) {
         this.raftClient = raftClient;
