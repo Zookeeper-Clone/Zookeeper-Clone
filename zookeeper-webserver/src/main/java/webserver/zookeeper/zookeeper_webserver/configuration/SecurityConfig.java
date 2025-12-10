@@ -62,7 +62,6 @@ public class SecurityConfig {
                             cookie.setMaxAge(60 * 60); // 1 hour expiration
                             response.addCookie(cookie);
 
-                            // Redirect to React frontend
                             response.sendRedirect("http://localhost:3000/");
                         }));
 
