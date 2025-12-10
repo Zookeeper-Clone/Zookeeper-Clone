@@ -36,6 +36,7 @@ export default function SignIn() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+        credentials: "include", // <-- important to store cookie
       });
 
       if (!response.ok) {
@@ -44,14 +45,17 @@ export default function SignIn() {
         return;
       }
 
-      const data = await response.json();
+      const body = await response.text();
+      console.log("Login response:", body);
 
-      // Save auth token
-      sessionStorage.setItem("sessionToken", data.token);
       localStorage.setItem("auth", "true");
 
+      sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
+
+      // Navigate to protected page
       navigate("/home");
-    } catch {
+    } catch (err) {
+      console.error(err);
       setErrorMessage("Network error. Please try again.");
     }
   };
