@@ -1,21 +1,21 @@
 package webserver.zookeeper.zookeeper_webserver.configuration;
 
-import client.zookeeper.ZookeeperClient;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+import client.zookeeper.ZookeeperClient;
+import jakarta.servlet.http.Cookie;
 
 @Configuration
 public class SecurityConfig {
@@ -24,6 +24,7 @@ public class SecurityConfig {
     private OAuth2AuthorizedClientService authorizedClientService;
     @Autowired
     private ZookeeperClient zookeeperClient;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
@@ -32,8 +33,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth
                         .successHandler((request, response, authentication) -> {
 
@@ -55,10 +55,16 @@ public class SecurityConfig {
 
                             String sessionToken = result.getSessionToken().orElse("");
 
-                            response.getWriter().write("Session token: " + sessionToken);
-                            response.setStatus(200);
-                        })
-                );
+                            Cookie cookie = new Cookie("SESSION_TOKEN",
+                                    sessionToken);
+                            cookie.setHttpOnly(true);
+                            cookie.setPath("/"); // send cookie for all endpoints
+                            cookie.setMaxAge(60 * 60); // 1 hour expiration
+                            response.addCookie(cookie);
+
+                            // Redirect to React frontend
+                            response.sendRedirect("http://localhost:3000/");
+                        }));
 
         return http.build();
     }
@@ -77,4 +83,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
