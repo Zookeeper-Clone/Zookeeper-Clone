@@ -7,14 +7,13 @@ import java.util.Set;
 
 public class ReservedDirectories {
     public static final String AUTH_DIRECTORY = "__ZK_SYS_AUTH__";
+    public static final String SESSION_DIRECTORY = "__ZK_SYS_SESSION__";
 
     private static final String SYSTEM_PREFIX = "__ZK_SYS_";
     private static final Set<String> RESERVED_DIRECTORIES;
 
     static {
-        Set<String> reserved = new HashSet<>();
-        reserved.add(AUTH_DIRECTORY);
-        RESERVED_DIRECTORIES = Collections.unmodifiableSet(reserved);
+        RESERVED_DIRECTORIES = Set.of(AUTH_DIRECTORY, SESSION_DIRECTORY);
     }
     private ReservedDirectories() {
         throw new AssertionError("ReservedDirectories is a utility class and should not be instantiated");

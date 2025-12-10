@@ -59,6 +59,8 @@ enum AuthOperationType {
    REGISTER_OAUTH = 6;
 
    LOGIN_OAUTH = 7;
+   
+   HEARTBEAT = 8;
 }
 
 // Authentication request message
