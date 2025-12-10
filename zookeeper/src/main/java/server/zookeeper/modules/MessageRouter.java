@@ -2,10 +2,14 @@ package server.zookeeper.modules;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.protocol.Message;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.proto.MessageWrapper;
+import server.zookeeper.proto.ResponseWrapper;
+import server.zookeeper.proto.auth.AuthOperationType;
+import server.zookeeper.proto.auth.AuthRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,15 +19,16 @@ public class MessageRouter {
     private static final Logger LOG = LoggerFactory.getLogger(MessageRouter.class);
     private final Map<MessageType, MessageHandler> handlers;
     private final MessageHandler fallbackHandler;
+    private final SessionManager sessionManager;
 
-    public MessageRouter(MessageHandler fallbackHandler) {
+    public MessageRouter(MessageHandler fallbackHandler, SessionManager sessionManager) {
         if (fallbackHandler == null) {
             throw new IllegalArgumentException("Fallback handler cannot be null");
         }
 
         this.handlers = new HashMap<>();
         this.fallbackHandler = fallbackHandler;
-
+        this.sessionManager = sessionManager;
         LOG.info("MessageRouter initialized with fallback handler: {}",
                 fallbackHandler.getHandlerType());
     }
@@ -84,7 +89,13 @@ public class MessageRouter {
             MessageWrapper wrapper = MessageWrapper.parseFrom(payload);
             MessageType messageType = wrapper.getType();
             byte[] innerPayload = wrapper.getPayload().toByteArray();
-
+            String sessionToken = wrapper.getSessionToken();
+            if (requiresAuthentication(messageType)) {
+                if (!sessionManager.validateSession(sessionToken)) {
+                    LOG.warn("Unauthorized access attempt. Type: {}", messageType);
+                    return createErrorResponse("Unauthorized: Invalid or expired session");
+                }
+            }
             LOG.debug("Routing wrapped message of type: {}", messageType);
 
             MessageHandler handler = handlers.get(messageType);
@@ -93,7 +104,7 @@ public class MessageRouter {
                 LOG.warn("No handler registered for message type: {}", messageType);
                 return createErrorResponse("No handler for message type: " + messageType);
             }
-            LOG.info("routeMessage - routing to {}" , handler.getHandlerType());
+            LOG.info("routeMessage - routing to {}", handler.getHandlerType());
             return handler.handle(innerPayload, isMutation);
 
         } catch (InvalidProtocolBufferException e) {
@@ -102,10 +113,22 @@ public class MessageRouter {
         }
     }
 
+    private boolean requiresAuthentication(MessageType type) {
+        switch (type) {
+            case QUERY:
+                return true;
+            case AUTH:
+                return false;
+            default:
+                throw new IllegalArgumentException("Unknown message type: " + type);
+        }
+    }
+
     private Message createErrorResponse(String errorMessage) {
-        // For backward compatibility, return simple string error
-        //TODO: In future, can return ResponseWrapper protobuf
-        return Message.valueOf("ERROR: " + errorMessage);
+        return Message.valueOf(ByteString.copyFrom(ResponseWrapper.newBuilder()
+                .setSuccess(false)
+                .setErrorMessage(errorMessage)
+                .build().toByteArray()));
     }
 
     public Optional<MessageHandler> getHandler(MessageType messageType) {

@@ -30,9 +30,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.AuthRepository;
 import server.zookeeper.DB.DataBase;
+import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.modules.AuthHandler;
 import server.zookeeper.modules.MessageRouter;
 import server.zookeeper.modules.QueryHandler;
+import server.zookeeper.modules.SessionManager;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.storage.FileListStateMachineStorage;
 import server.zookeeper.util.PasswordHasher;
@@ -47,8 +49,10 @@ public class KVStateMachine extends BaseStateMachine {
 
     public KVStateMachine(DataBase keyValStore) {
         try {
+            SessionRepository sessionRepository = new SessionRepository(keyValStore);
+            SessionManager sessionManager = new SessionManager(sessionRepository);
             QueryHandler queryHandler = new QueryHandler(keyValStore);
-            this.messageRouter = new MessageRouter(queryHandler);
+            this.messageRouter = new MessageRouter(queryHandler, sessionManager);
             this.db = keyValStore;
 
             AuthRepository authRepository = new AuthRepository(keyValStore);
@@ -59,7 +63,7 @@ public class KVStateMachine extends BaseStateMachine {
                     .setAudience(Collections.singletonList("407408718192.apps.googleusercontent.com"))
                     .build();
 
-            AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier);
+            AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
 
             messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);

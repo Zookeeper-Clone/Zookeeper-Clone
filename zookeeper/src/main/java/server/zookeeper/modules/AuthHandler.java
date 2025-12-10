@@ -8,6 +8,7 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.AuthRepository;
+import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.proto.auth.*;
 import server.zookeeper.util.EmailUtils;
 import server.zookeeper.util.PasswordHasher;
@@ -24,26 +25,32 @@ public class AuthHandler implements MessageHandler {
     private final PasswordHasher passwordHasher;
     private final GoogleIdTokenVerifier verifier;
     private final Map<AuthOperationType, AuthOperationHandler> operationHandlers;
+    private final SessionManager sessionManager;
 
     @FunctionalInterface
     private interface AuthOperationHandler {
         AuthResponse handle(AuthRequest request);
     }
 
-    public AuthHandler(AuthRepository authRepository, PasswordHasher passwordHasher, GoogleIdTokenVerifier verifier) {
+    public AuthHandler(AuthRepository authRepository, PasswordHasher passwordHasher, GoogleIdTokenVerifier verifier, SessionManager sessionManager) {
         if (authRepository == null) {
             throw new IllegalArgumentException("AuthRepository cannot be null");
         }
         if (passwordHasher == null) {
             throw new IllegalArgumentException("PasswordHasher cannot be null");
         }
-        if (verifier == null){
+        if (verifier == null) {
             throw new IllegalArgumentException("GoogleIdTokenVerifiter cannot be null");
         }
+        if (sessionManager == null) {
+            throw new IllegalArgumentException("SessionManager cannot be null");
+        }
+
         this.authRepository = authRepository;
         this.passwordHasher = passwordHasher;
         this.verifier = verifier;
         this.operationHandlers = initializeOperationHandlers();
+        this.sessionManager = sessionManager;
 
         LOG.info("AuthHandler initialized successfully");
     }
@@ -56,6 +63,7 @@ public class AuthHandler implements MessageHandler {
         handlers.put(AuthOperationType.LOGIN_OAUTH, this::handleLoginOAuth);
         handlers.put(AuthOperationType.LOGOUT, this::handleLogout);
         handlers.put(AuthOperationType.CHANGE_PASSWORD, this::handleChangePassword);
+        handlers.put(AuthOperationType.HEARTBEAT, this::handleHeartbeat);
         // handlers.put(AuthOperationType.MODIFY_PERMISSIONS, this::handleModifyPermissions); // Future: Admin only
         return handlers;
     }
@@ -159,16 +167,17 @@ public class AuthHandler implements MessageHandler {
             return createErrorAuthResponse("Registration failed: " + e.getMessage());
         }
     }
-    private AuthResponse handleRegisterOAuth(AuthRequest request){
+
+    private AuthResponse handleRegisterOAuth(AuthRequest request) {
         LOG.debug("Processing REGISTER_OAUTH request for: {}", EmailUtils.maskEmail(request.getEmail()));
         try {
             ValidationResult validationResult = validateOAuthRegistrationRequest(request);
-            if(!validationResult.isValid()){
+            if (!validationResult.isValid()) {
                 LOG.warn("Registration validation failed: {}", validationResult.getErrorMessage());
                 return createErrorAuthResponse(validationResult.getErrorMessage());
             }
             String email = request.getEmail().trim().toLowerCase();
-            if(authRepository.userExists(email)){
+            if (authRepository.userExists(email)) {
                 LOG.warn("Registration failed: User already exists: {}", EmailUtils.maskEmail(email));
                 return createErrorAuthResponse("User with this email already exists");
             }
@@ -185,19 +194,21 @@ public class AuthHandler implements MessageHandler {
                     .setUserInfo(userInfo)
                     .setErrorMessage("")
                     .build();
-        }catch (Exception e){
+        } catch (Exception e) {
             LOG.error("Error during registration", e);
             return createErrorAuthResponse("Registration failed: " + e.getMessage());
         }
     }
+
     private AuthResponse handleLogout(AuthRequest request) {
         LOG.debug("Processing LOGOUT request");
         // TODO: Implement session invalidation when session management is added
+        sessionManager.invalidateSession(request.getSessionToken());
         return AuthResponse.newBuilder()
                 .setSuccess(true)
-                .setErrorMessage("")
                 .build();
     }
+
     private AuthResponse handleChangePassword(AuthRequest request) {
         LOG.debug("Processing CHANGE_PASSWORD request for: {}", EmailUtils.maskEmail(request.getEmail()));
         // FIXME: Use chain of responsibility
@@ -321,7 +332,7 @@ public class AuthHandler implements MessageHandler {
             }
 
             // TODO: Implement proper session management
-            String sessionToken = generateSessionToken();
+            String sessionToken = sessionManager.createSession(email);
 
             LOG.info("Successfully logged in user: {}", EmailUtils.maskEmail(email));
 
@@ -338,7 +349,8 @@ public class AuthHandler implements MessageHandler {
             return createErrorAuthResponse("Login failed: " + e.getMessage());
         }
     }
-    private  AuthResponse handleLoginOAuth(AuthRequest request){
+
+    private AuthResponse handleLoginOAuth(AuthRequest request) {
         LOG.debug("Processing LOGIN_OAUTH request for: {}", EmailUtils.maskEmail(request.getEmail()));
         try {
             ValidationResult validation = validateOAuthLoginRequest(request);
@@ -348,46 +360,53 @@ public class AuthHandler implements MessageHandler {
             }
             String email = request.getEmail().trim().toLowerCase();
             Optional<UserAuth> userOptional = authRepository.getUserByEmail(email);
-            if (userOptional.isEmpty()){
+            if (userOptional.isEmpty()) {
                 LOG.warn("Login failed: User not found: {}", EmailUtils.maskEmail(email));
                 return createErrorAuthResponse("Invalid email or password");
             }
-            
+
             UserAuth userAuth = userOptional.get();
-            String sessionToken = generateSessionToken();
+            String sessionToken = sessionManager.createSession(email);
 
             LOG.info("Successfully logged in OAUTH user: {}", EmailUtils.maskEmail(email));
-                UserInfo userInfo = convertToUserInfo(userAuth);
-                return AuthResponse.newBuilder()
-                        .setSuccess(true)
-                        .setErrorMessage("")
-                        .setSessionToken(sessionToken)
-                        .setUserInfo(userInfo)
-                        .build();
+            UserInfo userInfo = convertToUserInfo(userAuth);
+            return AuthResponse.newBuilder()
+                    .setSuccess(true)
+                    .setErrorMessage("")
+                    .setSessionToken(sessionToken)
+                    .setUserInfo(userInfo)
+                    .build();
 
-        }catch (Exception e){
+        } catch (Exception e) {
             LOG.error("Error during login", e);
             return createErrorAuthResponse("Login failed: " + e.getMessage());
         }
     }
-    private String generateSessionToken() {
-        return UUID.randomUUID().toString();
+
+    private AuthResponse handleHeartbeat(AuthRequest request) {
+        String token = request.getSessionToken();
+        if (sessionManager.validateSession(token)) {
+            sessionManager.refreshSession(token);
+            return AuthResponse.newBuilder().setSuccess(true).build();
+        }
+        return createErrorAuthResponse("Invalid or expired session token");
+
     }
-    private ValidationResult validateOAuthLoginRequest(AuthRequest request){
+    private ValidationResult validateOAuthLoginRequest(AuthRequest request) {
         ValidationResult Invalid_email_format = validateEmail(request);
         if (Invalid_email_format != null) return Invalid_email_format;
 
-        if(request.getGoogleToken() == null || request.getGoogleToken().isEmpty()){
+        if (request.getGoogleToken() == null || request.getGoogleToken().isEmpty()) {
             return ValidationResult.failure("Google Token cannot be empty");
         }
 
         try {
             GoogleIdToken token = verifier.verify(request.getGoogleToken());
-            if(!token.getPayload().getEmail().equals(request.getEmail())){
+            if (!token.getPayload().getEmail().equals(request.getEmail())) {
                 return ValidationResult.failure("Google Token doesn't match email");
             }
         } catch (Exception e) {
-                return ValidationResult.failure("Google Token error");
+            return ValidationResult.failure("Google Token error");
         }
         return ValidationResult.success();
     }
@@ -395,7 +414,7 @@ public class AuthHandler implements MessageHandler {
     private static ValidationResult validateEmail(AuthRequest request) {
         try {
             EmailUtils.validateEmail(request.getEmail());
-        } catch (RuntimeException e){
+        } catch (RuntimeException e) {
             return ValidationResult.failure("Invalid email format");
         }
         return null;
@@ -447,12 +466,13 @@ public class AuthHandler implements MessageHandler {
             return errorMessage;
         }
     }
-    private ValidationResult validateOAuthRegistrationRequest(AuthRequest request){
+
+    private ValidationResult validateOAuthRegistrationRequest(AuthRequest request) {
         ValidationResult Invalid_email_format = validateEmail(request);
         if (Invalid_email_format != null) return Invalid_email_format;
         try {
             GoogleIdToken token = verifier.verify(request.getGoogleToken());
-            if(!token.getPayload().getEmail().equals(request.getEmail())){
+            if (!token.getPayload().getEmail().equals(request.getEmail())) {
                 return ValidationResult.failure("Token Email doesn't match request email");
             }
         } catch (Exception e) {
@@ -460,6 +480,7 @@ public class AuthHandler implements MessageHandler {
         }
         return ValidationResult.success();
     }
+
     private ValidationResult validateRegistrationRequest(AuthRequest request) {
         ValidationResult Invalid_email_format = validateEmail(request);
         if (Invalid_email_format != null) return Invalid_email_format;
