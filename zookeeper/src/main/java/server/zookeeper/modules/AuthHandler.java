@@ -8,7 +8,6 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.AuthRepository;
-import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.proto.auth.*;
 import server.zookeeper.util.EmailUtils;
 import server.zookeeper.util.PasswordHasher;
