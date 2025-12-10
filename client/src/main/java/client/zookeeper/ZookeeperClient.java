@@ -20,113 +20,116 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Function;
 
-public class ZookeeperClient {
+public class ZookeeperClient implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(ZookeeperClient.class);
 
     private final RaftClient raftClient;
-    private String sessionToken;
+    private final SessionManager sessionManager;
 
     public ZookeeperClient(RaftClient raftClient) {
         this.raftClient = raftClient;
-        this.sessionToken = null;
+        this.sessionManager = new SessionManager();
     }
 
     public AuthenticationResult register(String email, String password) {
-        AuthRequest authRequest = buildAuthRequest(AuthOperationType.REGISTER, email, password);
+        AuthRequest authRequest = RequestFactory.buildAuthRequest(
+                AuthOperationType.REGISTER, email, password, sessionManager.getToken());
         return sendAuthRequest(authRequest, false);
     }
 
     public AuthenticationResult login(String email, String password) {
-        AuthRequest authRequest = buildAuthRequest(AuthOperationType.LOGIN, email, password);
-        AuthenticationResult result = sendAuthRequest(authRequest, true);
+        AuthRequest authRequest = RequestFactory.buildAuthRequest(
+                AuthOperationType.LOGIN, email, password, sessionManager.getToken());
+        AuthenticationResult result = sendAuthRequest(authRequest, false);
 
         if (result.isSuccess() && result.getSessionToken().isPresent()) {
-            this.sessionToken = result.getSessionToken().get();
+            sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
             LOG.info("User {} logged in successfully", email);
         }
         return result;
     }
 
     public AuthenticationResult registerOAuth(String email, String OAuthToken) {
-        AuthRequest authRequest = buildOAuthRequest(AuthOperationType.REGISTER_OAUTH, email, OAuthToken);
+        AuthRequest authRequest = RequestFactory.buildOAuthRequest(
+                AuthOperationType.REGISTER_OAUTH, email, OAuthToken, sessionManager.getToken());
         return sendAuthRequest(authRequest, false);
     }
 
     public AuthenticationResult loginOAuth(String email, String OAuthToken) {
-        AuthRequest authRequest = buildOAuthRequest(AuthOperationType.LOGIN_OAUTH, email, OAuthToken);
-        AuthenticationResult result = sendAuthRequest(authRequest, true);
+        AuthRequest authRequest = RequestFactory.buildOAuthRequest(
+                AuthOperationType.LOGIN_OAUTH, email, OAuthToken, sessionManager.getToken());
+        AuthenticationResult result = sendAuthRequest(authRequest, false);
+
         if (result.isSuccess() && result.getSessionToken().isPresent()) {
-            this.sessionToken = result.getSessionToken().get();
+            sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
             LOG.info("User {} logged in successfully", email);
         }
         return result;
     }
 
+    private void sendHeartbeat() {
+        Optional<String> token = sessionManager.getToken();
+        if (token.isEmpty()) return;
+
+        AuthRequest request = RequestFactory.buildHeartbeatRequest(token.get());
+
+        // Heartbeat is a write operation (updates expiry)
+        // TODO: think more about what type of queries should we use here
+        AuthenticationResult result = sendAuthRequest(request, false);
+
+        if (!result.isSuccess()) {
+            String msg = result.getMessage();
+            if (isSessionError(msg)) {
+                LOG.warn("Heartbeat failed with session error: {}. Logging out.", msg);
+                sessionManager.invalidateSession();
+            } else {
+                LOG.warn("Heartbeat failed: {}", msg);
+            }
+        }
+    }
+
+    private boolean isSessionError(String msg) {
+        return msg != null && (msg.contains("Unauthorized") || msg.contains("expired session"));
+    }
+
     public boolean isAuthenticated() {
-        return sessionToken != null && !sessionToken.isEmpty();
+        return sessionManager.isAuthenticated();
     }
 
     public Optional<String> getSessionToken() {
-        return Optional.ofNullable(sessionToken);
-    }
-    private UserQuery buildQueryRequest(QueryType queryType, String key , String value,String directory){
-        return UserQuery.newBuilder()
-                .setQueryType(queryType)
-                .setKey(key)
-                .setValue(value)
-                .setDirectory(directory)
-                .build();
-    }
-    private AuthRequest buildAuthRequest(AuthOperationType operation, String email, String password) {
-        AuthRequest.Builder builder = AuthRequest.newBuilder()
-                .setOperation(operation)
-                .setEmail(email)
-                .setPassword(password);
-
-        if (sessionToken != null) {
-            builder.setSessionToken(sessionToken);
-        }
-
-        return builder.build();
-    }
-
-    private AuthRequest buildOAuthRequest(AuthOperationType operation, String email , String OAuthToken){
-        AuthRequest.Builder builder = AuthRequest.newBuilder()
-                .setOperation(operation)
-                .setEmail(email)
-                .setGoogleToken(OAuthToken);
-        if (sessionToken != null){
-            builder.setSessionToken(sessionToken);
-        }
-        return builder.build();
+        return sessionManager.getToken();
     }
 
     private AuthenticationResult sendAuthRequest(AuthRequest authRequest, boolean isReadOnly) {
-        return sendRequest(authRequest , MessageType.AUTH , isReadOnly, this::parseAuthResponse);
+        return sendRequest(authRequest, MessageType.AUTH, isReadOnly, this::parseAuthResponse);
     }
-    private QueryResult sendQueryRequest(UserQuery userQyery, boolean isReadOnly){
-        return sendRequest(userQyery, MessageType.QUERY, isReadOnly,this::parseQueryResponse);
+
+    private QueryResult sendQueryRequest(UserQuery userQyery, boolean isReadOnly) {
+        return sendRequest(userQyery, MessageType.QUERY, isReadOnly, this::parseQueryResponse);
     }
-    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser){
+
+    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser) {
         try {
             MessageWrapper wrapper = MessageWrapper.newBuilder()
                     .setType(type)
                     .setPayload(request.toByteString())
+                    .setSessionToken(sessionManager.getToken().orElseGet(String::new))
                     .build();
             Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
 
             RaftClientReply reply = isReadOnly
                     ? raftClient.io().sendReadOnly(message)
                     : raftClient.io().send(message);
-            if (!reply.isSuccess()){
+            if (!reply.isSuccess()) {
                 return responseParser.apply(null);
             }
             return responseParser.apply(reply.getMessage().getContent());
-        }catch (IOException e){
-            LOG.error("Request failed" , e);
+        } catch (IOException e) {
+            LOG.error("Request failed", e);
             return responseParser.apply(null);
         }
     }
+
     private AuthenticationResult parseAuthResponse(ByteString responseBytes) {
         try {
             AuthResponse authResponse = AuthResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
@@ -141,7 +144,8 @@ public class ZookeeperClient {
             return AuthenticationResult.failure("Invalid server response");
         }
     }
-    private QueryResult parseQueryResponse(ByteString responseBytes){
+
+    private QueryResult parseQueryResponse(ByteString responseBytes) {
         try {
             QueryResponse queryResponse = QueryResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
 
@@ -149,41 +153,48 @@ public class ZookeeperClient {
                     queryResponse.getSuccess(),
                     queryResponse.getErrorMessage(),
                     queryResponse.getValue());
-        }catch (InvalidProtocolBufferException e){
+        } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse query response");
             return QueryResult.failure("Invalid Server response");
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        sessionManager.close();
+        if (raftClient != null) {
+            raftClient.close();
+        }
+    }
 
     public QueryResult read(String key) {
-        UserQuery q = buildQueryRequest(QueryType.GET,key,"","");
-        return sendQueryRequest(q,true);
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", "", sessionManager.getToken());
+        return sendQueryRequest(q, true);
     }
 
     public QueryResult read(String key, String directory) {
-        UserQuery q = buildQueryRequest(QueryType.GET,key,"",directory);
-        return sendQueryRequest(q,true);
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, sessionManager.getToken());
+        return sendQueryRequest(q, true);
     }
 
     public QueryResult write(String key, String value) {
-        UserQuery q = buildQueryRequest(QueryType.WRITE,key,value,"");
-        return sendQueryRequest(q,false);
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, "", sessionManager.getToken());
+        return sendQueryRequest(q, false);
     }
 
-    public QueryResult write(String key, String value,String directory) {
-        UserQuery q = buildQueryRequest(QueryType.WRITE,key,value,directory);
-        return sendQueryRequest(q,false);
+    public QueryResult write(String key, String value, String directory) {
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, directory, sessionManager.getToken());
+        return sendQueryRequest(q, false);
     }
 
     public QueryResult delete(String key) {
-        UserQuery q = buildQueryRequest(QueryType.DELETE, key, "" , "");
-        return sendQueryRequest(q,false);
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", "", sessionManager.getToken());
+        return sendQueryRequest(q, false);
     }
 
     public QueryResult delete(String key, String directory) {
-        UserQuery q = buildQueryRequest(QueryType.DELETE, key, "" , directory);
-        return sendQueryRequest(q,false);
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, sessionManager.getToken());
+        return sendQueryRequest(q, false);
     }
 
     public static class AuthenticationResult {
@@ -227,6 +238,7 @@ public class ZookeeperClient {
                     success, message, sessionToken != null);
         }
     }
+
     public static class QueryResult {
         private final boolean success;
         private final String message;
@@ -258,7 +270,9 @@ public class ZookeeperClient {
             return message;
         }
 
-        public String getValue() {return value;}
+        public String getValue() {
+            return value;
+        }
 
         @Override
         public String toString() {

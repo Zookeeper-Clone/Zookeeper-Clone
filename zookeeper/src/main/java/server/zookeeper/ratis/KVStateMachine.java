@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
@@ -15,6 +16,7 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.apache.ratis.io.MD5Hash;
 import org.apache.ratis.protocol.Message;
+import org.apache.ratis.protocol.RaftClientRequest;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.protocol.TermIndex;
@@ -25,15 +27,21 @@ import org.apache.ratis.statemachine.StateMachineStorage;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
 import org.apache.ratis.statemachine.impl.FileListSnapshotInfo;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.MD5FileUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.AuthRepository;
 import server.zookeeper.DB.DataBase;
+import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.modules.AuthHandler;
 import server.zookeeper.modules.MessageRouter;
 import server.zookeeper.modules.QueryHandler;
+import server.zookeeper.modules.SessionManager;
 import server.zookeeper.proto.MessageType;
+import server.zookeeper.proto.MessageWrapper;
+import server.zookeeper.proto.auth.AuthOperationType;
+import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.storage.FileListStateMachineStorage;
 import server.zookeeper.util.PasswordHasher;
 
@@ -47,8 +55,10 @@ public class KVStateMachine extends BaseStateMachine {
 
     public KVStateMachine(DataBase keyValStore) {
         try {
+            SessionRepository sessionRepository = new SessionRepository(keyValStore);
+            SessionManager sessionManager = new SessionManager(sessionRepository);
             QueryHandler queryHandler = new QueryHandler(keyValStore);
-            this.messageRouter = new MessageRouter(queryHandler);
+            this.messageRouter = new MessageRouter(queryHandler, sessionManager);
             this.db = keyValStore;
 
             AuthRepository authRepository = new AuthRepository(keyValStore);
@@ -59,12 +69,12 @@ public class KVStateMachine extends BaseStateMachine {
                     .setAudience(Collections.singletonList("407408718192.apps.googleusercontent.com"))
                     .build();
 
-            AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier);
+            AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
 
             messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);
             LOG.info("KVStateMachine initialized with MessageRouter");
-        }catch (Exception e){
+        } catch (Exception e) {
             LOG.error("Error initialzing KVStateMachine");
             throw new RuntimeException("Error initializing state machine");
         }
@@ -107,6 +117,45 @@ public class KVStateMachine extends BaseStateMachine {
             Message errorMsg = Message.valueOf("ERROR: " + e.getMessage());
             return CompletableFuture.completedFuture(errorMsg);
         }
+    }
+
+    @Override
+    public TransactionContext startTransaction(RaftClientRequest request) throws IOException {
+        ByteString content = request.getMessage().getContent();
+        try {
+            MessageWrapper wrapper = MessageWrapper.parseFrom(content.toByteArray());
+            if (wrapper.getType() != MessageType.AUTH) {
+                LOG.debug("Non-AUTH message received, passing through unmodified");
+                return super.startTransaction(request);
+            }
+
+            AuthRequest authRequest = AuthRequest.parseFrom(wrapper.getPayload());
+            if (!(authRequest.getOperation() == AuthOperationType.LOGIN ||
+                    authRequest.getOperation() == AuthOperationType.LOGIN_OAUTH)) {
+                LOG.debug("AUTH operation is not LOGIN, passing through unmodified");
+                return super.startTransaction(request);
+            }
+
+            // Intercept LOGIN operations to inject a deterministic Session Token
+            String preGeneratedToken = UUID.randomUUID().toString();
+            LOG.debug("Leader generating session token: {}", preGeneratedToken);
+
+            AuthRequest.Builder authBuilder = authRequest.toBuilder()
+                    .setSessionToken(preGeneratedToken);
+
+            MessageWrapper newWrapper = wrapper.toBuilder()
+                    .setPayload(authBuilder.build().toByteString())
+                    .build();
+
+            return TransactionContext.newBuilder()
+                    .setStateMachine(this)
+                    .setClientRequest(request)
+                    .setLogData(ByteString.copyFrom(newWrapper.toByteArray()))
+                    .build();
+        } catch (Exception e) {
+            LOG.warn("Failed to inspect/modify transaction in startTransaction", e);
+        }
+        return super.startTransaction(request);
     }
 
     @Override
