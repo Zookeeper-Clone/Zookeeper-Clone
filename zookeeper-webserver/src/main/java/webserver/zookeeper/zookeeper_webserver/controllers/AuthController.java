@@ -21,7 +21,7 @@ import java.util.Map;
 public class AuthController {
 
     @Autowired
-    private final AuthService auth;
+    private AuthService auth;
 
 
     @PostMapping("/register")
