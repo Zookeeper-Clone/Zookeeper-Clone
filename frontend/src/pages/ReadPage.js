@@ -17,7 +17,7 @@ export default function ReadPage() {
     JSON.parse(localStorage.getItem("frequencyData")) || {}
   );
   const [cannedOperations, setCannedOperations] = useState(
-    JSON.parse(localStorage.getItem("cannedOperations"))
+    JSON.parse(localStorage.getItem("cannedOperations")) || []
   );
   const clearHistory = () => {
     setHistoryData([]);
