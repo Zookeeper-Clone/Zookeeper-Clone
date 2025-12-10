@@ -167,7 +167,7 @@ export default function ReadPage() {
     <Box sx={{ p: 3 }}>
       <Grid container spacing={4}>
         {/* Left Column */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={6} sx={{width : "50%"}}>
           <Box sx={{ mb: 3 }}>
             <TextField
               label="Key"
@@ -230,9 +230,6 @@ export default function ReadPage() {
               </Button>
             </Box>
           )}
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            Canned Operations
-          </Typography>
 
           <TableContainer component={Paper}>
             <Table>
@@ -277,17 +274,13 @@ export default function ReadPage() {
         </Grid>
 
         {/* Right Column */}
-        <Grid item xs={12} md={6}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Grid item xs={12} md={6} sx={{width : "45%"}}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" , mb: 1}}>
             <Typography variant="h6">History (last 5)</Typography>
             <Button variant="outlined" color="error" onClick={clearHistory}>
               Clear
             </Button>
           </Box>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            History (last 5)
-          </Typography>
-
           <TableContainer component={Paper} sx={{ mb: 3 }}>
             <Table>
               <TableHead>
@@ -314,15 +307,12 @@ export default function ReadPage() {
 
             </Table>
           </TableContainer>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography variant="h6">History (last 5)</Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1}}>
+            <Typography variant="h6">Frequency Table (last 5)</Typography>
             <Button variant="outlined" color="error" onClick={clearFrequency}>
               Clear
             </Button>
           </Box>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            Frequency Table (top 5)
-          </Typography>
 
           <TableContainer component={Paper}>
             <Table>
