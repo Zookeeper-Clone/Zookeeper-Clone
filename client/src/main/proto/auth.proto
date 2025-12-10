@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package zookeeper.auth;
 
-option java_package = "server.zookeeper.proto.auth";
-option java_outer_classname = "AuthProto";
 option java_multiple_files = true;
+option java_outer_classname = "AuthProto";
+option java_package = "server.zookeeper.proto.auth";
 
 // ============================================================================
 // Storage Messages
@@ -28,8 +28,8 @@ message UserAuth {
 
   // Whether user can create new directories/column families
   bool can_create_directories = 5;
+  string google_token = 6;
 }
-
 
 // ============================================================================
 // Request/Response Messages
@@ -55,9 +55,11 @@ enum AuthOperationType {
   // Modify permissions of a user (admin only)
   MODIFY_PERMISSIONS = 5;
 
-   REGISTER_OAUTH = 6;
+  REGISTER_OAUTH = 6;
 
-   LOGIN_OAUTH = 7;
+  LOGIN_OAUTH = 7;
+
+  HEARTBEAT = 8;
 }
 
 // Authentication request message

@@ -1,14 +1,17 @@
 import static org.junit.jupiter.api.Assertions.*;
 
+import client.zookeeper.RequestFactory;
 import client.zookeeper.ZookeeperClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+
 import server.zookeeper.proto.auth.AuthOperationType;
 import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Optional;
@@ -30,7 +33,6 @@ public class TestStore {
         assertFalse(client.isAuthenticated());
         assertFalse(client.getSessionToken().isPresent());
     }
-
 
     // ===================== AUTHENTICATION RESULT TESTS =====================
 
@@ -118,43 +120,28 @@ public class TestStore {
 
     @Test
     void testBuildQueryRequest() throws Exception {
-        Method method = ZookeeperClient.class.getDeclaredMethod(
-                "buildQueryRequest", QueryType.class, String.class, String.class, String.class);
-        method.setAccessible(true);
-
-        UserQuery query = (UserQuery) method.invoke(client, QueryType.GET, "key1", "val1", "dir1");
+        UserQuery query = RequestFactory.buildUserQuery(QueryType.GET, "key1", "val1", "dir1", Optional.of("userTok"));
 
         assertEquals(QueryType.GET, query.getQueryType());
         assertEquals("key1", query.getKey());
         assertEquals("val1", query.getValue());
         assertEquals("dir1", query.getDirectory());
+        assertEquals("userTok", query.getSessionToken());
     }
 
     @Test
     void testBuildAuthRequestWithoutSessionToken() throws Exception {
-        Method method = ZookeeperClient.class.getDeclaredMethod(
-                "buildAuthRequest", AuthOperationType.class, String.class, String.class);
-        method.setAccessible(true);
-
-        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.REGISTER, "a@b.com", "pass");
+        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.REGISTER, "a@b.com", "pass", Optional.empty());
 
         assertEquals(AuthOperationType.REGISTER, req.getOperation());
         assertEquals("a@b.com", req.getEmail());
         assertEquals("pass", req.getPassword());
+        assertTrue(req.getSessionToken().isEmpty());
     }
 
     @Test
     void testBuildAuthRequestWithSessionToken() throws Exception {
-        // Manually set sessionToken via reflection
-        var tokenField = ZookeeperClient.class.getDeclaredField("sessionToken");
-        tokenField.setAccessible(true);
-        tokenField.set(client, "tok123");
-
-        Method method = ZookeeperClient.class.getDeclaredMethod(
-                "buildAuthRequest", AuthOperationType.class, String.class, String.class);
-        method.setAccessible(true);
-
-        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.LOGIN, "b@c.com", "pass2");
+        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.LOGIN, "b@c.com", "pass2", Optional.of("tok123"));
 
         assertEquals(AuthOperationType.LOGIN, req.getOperation());
         assertEquals("b@c.com", req.getEmail());
@@ -164,30 +151,17 @@ public class TestStore {
 
     @Test
     void testBuildOAuthRequestWithoutSessionToken() throws Exception {
-        Method method = ZookeeperClient.class.getDeclaredMethod(
-                "buildOAuthRequest", AuthOperationType.class, String.class, String.class);
-        method.setAccessible(true);
-
-        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.LOGIN_OAUTH, "o@auth.com", "tokenX");
+        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.LOGIN_OAUTH, "o@auth.com", "tokenX", Optional.empty());
 
         assertEquals(AuthOperationType.LOGIN_OAUTH, req.getOperation());
         assertEquals("o@auth.com", req.getEmail());
         assertEquals("tokenX", req.getGoogleToken());
-        assertTrue(req.getSessionToken().isEmpty()); // instead of hasSessionToken()
+        assertTrue(req.getSessionToken().isEmpty());
     }
 
     @Test
     void testBuildOAuthRequestWithSessionToken() throws Exception {
-        // Manually set sessionToken via reflection
-        var tokenField = ZookeeperClient.class.getDeclaredField("sessionToken");
-        tokenField.setAccessible(true);
-        tokenField.set(client, "sessTok");
-
-        Method method = ZookeeperClient.class.getDeclaredMethod(
-                "buildOAuthRequest", AuthOperationType.class, String.class, String.class);
-        method.setAccessible(true);
-
-        AuthRequest req = (AuthRequest) method.invoke(client, AuthOperationType.REGISTER_OAUTH, "x@y.com", "oauthTok");
+        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.REGISTER_OAUTH, "x@y.com", "oauthTok", Optional.of("sessTok"));
 
         assertEquals(AuthOperationType.REGISTER_OAUTH, req.getOperation());
         assertEquals("x@y.com", req.getEmail());
