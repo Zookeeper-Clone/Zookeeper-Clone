@@ -66,7 +66,7 @@ public class KVStateMachine extends BaseStateMachine {
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     GoogleNetHttpTransport.newTrustedTransport(),
                     GsonFactory.getDefaultInstance())
-                    .setAudience(Collections.singletonList("407408718192.apps.googleusercontent.com"))
+                    .setAudience(Collections.singletonList("262245405443-qbbcc9te4oh15fmro35jghko6ho9r9ap.apps.googleusercontent.com"))
                     .build();
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);

@@ -328,7 +328,7 @@ public class AuthHandler implements MessageHandler {
                 LOG.error("Session token missing in login request for: {}, using random generated token", EmailUtils.maskEmail(email));
                 sessionToken = UUID.randomUUID().toString();
             }
-           sessionManager.createSession(email, sessionToken);
+            sessionManager.createSession(email, sessionToken);
 
             LOG.info("Successfully logged in user: {}", EmailUtils.maskEmail(email));
 
@@ -363,7 +363,6 @@ public class AuthHandler implements MessageHandler {
 
             UserAuth userAuth = userOptional.get();
 
-            //* use the session token injected by the leader in startTransaction
             String sessionToken = request.getSessionToken();
             if (sessionToken.isEmpty()) {
                 LOG.error("Session token missing in login request for: {}, using random generated token", EmailUtils.maskEmail(email));

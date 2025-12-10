@@ -9,8 +9,12 @@ import webserver.zookeeper.zookeeper_webserver.controllers.QueryController;
 @Service
 public class QueryService {
 
+    private final ZookeeperClient zookeeperClient;
+
     @Autowired
-    private ZookeeperClient zookeeperClient;
+    public QueryService(ZookeeperClient zookeeperClient) {
+        this.zookeeperClient = zookeeperClient;
+    }
 
     public ResponseEntity<String> read(QueryController.ReadRequest req) {
         return handleQueryResult(
@@ -40,3 +44,4 @@ public class QueryService {
         return result.isSuccess() ? ResponseEntity.ok(result.getValue()) : ResponseEntity.badRequest().body(result.getMessage());
     }
 }
+
