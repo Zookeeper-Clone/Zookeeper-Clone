@@ -27,6 +27,8 @@ message MessageWrapper {
   // For QUERY: serialized Query message
   // For AUTH: serialized AuthRequest message
   bytes payload = 2;
+
+  string session_token = 3;
 }
 
 // Generic response wrapper
