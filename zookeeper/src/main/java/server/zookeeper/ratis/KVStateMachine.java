@@ -5,10 +5,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
@@ -64,7 +61,6 @@ public class KVStateMachine extends BaseStateMachine {
             this.db = keyValStore;
 
             this.sessionCleanupWorker = new SessionCleanupWorker(sessionManager);
-            this.sessionCleanupWorker.start();
 
             AuthRepository authRepository = new AuthRepository(keyValStore);
             PasswordHasher passwordHasher = PasswordHasher.getInstance();
@@ -90,13 +86,30 @@ public class KVStateMachine extends BaseStateMachine {
     public void initialize(RaftServer server, RaftGroupId groupId, RaftStorage raftStorage) throws IOException {
         log.info("initialize method called");
         this.storage.init(raftStorage);
-
+        this.sessionCleanupWorker.setRaftInfo(server, groupId);
         SnapshotInfo snapshot = storage.getLatestSnapshot();
         log.info("snapshot is null ? {} : ", snapshot == null);
 
         if (snapshot != null) {
             loadSnapshot(snapshot);
         }
+    }
+
+    @Override
+    public LeaderEventApi leaderEvent() {
+        return new LeaderEventApi() {
+            @Override
+            public void notifyLeaderReady() {
+                LOG.debug("Node is now leader, starting session cleanup worker");
+                sessionCleanupWorker.start();
+            }
+
+            @Override
+            public void notifyNotLeader(Collection<TransactionContext> pendingEntries) throws IOException {
+                LOG.debug("Node is no longer leader, stopping session cleanup worker");
+                sessionCleanupWorker.close();
+            }
+        };
     }
 
     @Override

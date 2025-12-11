@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.proto.session.Session;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -81,27 +82,17 @@ public class SessionManager {
         sessionRepository.deleteSession(token);
     }
 
-    /**
-     * Cleanup all expired sessions.
-     * A session is expired if its lastHeartbeatTime is more than SESSION_TIMEOUT_NS ago.
-     * @return the number of sessions that were cleaned up
-     */
-    public int cleanupExpiredSessions() {
+    public List<Session> getExpiredSessions() {
         long now = System.nanoTime();
         List<Session> sessions = sessionRepository.getAllSessions();
-        int expiredCount = 0;
+        List<Session> expired = new ArrayList<>();
 
         for (Session session : sessions) {
             long lastHeartbeat = session.getLastHeartbeatTime();
             if (now - lastHeartbeat > SESSION_TIMEOUT_NS) {
-                String token = session.getSessionToken();
-                LOG.info("Session expired for user: {}, last heartbeat was {} ms ago",
-                        session.getUserEmail(), TimeUnit.NANOSECONDS.toMillis(now - lastHeartbeat));
-                invalidateSession(token);
-                expiredCount++;
+                expired.add(session);
             }
         }
-
-        return expiredCount;
+        return expired;
     }
 }
