@@ -237,24 +237,26 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public PermissionsResult getUserPermissionsByEmail(String email) {
-        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
-                .setRequestType(RequestType.GET)
-                .setUserEmail(email == null ? "" : email)
-                .setToken(sessionManager.getToken().orElseGet(String::new))
-                .build();
+        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.GET,
+                UserPermissions.newBuilder().build(), sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, true);
+    }
+
+    private UserPermissionsRequest getUserPermissionsRequest(String email, RequestType requestType, UserPermissions userPermissions, String token) {
+        return UserPermissionsRequest.newBuilder()
+                .setRequestType(requestType)
+                .setUserEmail(email == null ? "" : email)
+                .setToken(token)
+                .setUserPermissions(userPermissions)
+                .build();
     }
 
     public PermissionsResult setIsAdmin(String email, boolean isAdmin) {
         UserPermissions userPerm = UserPermissions.newBuilder()
                 .setIsAdmin(isAdmin)
                 .build();
-        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
-                .setRequestType(RequestType.SET_IS_ADMIN)
-                .setUserEmail(email == null ? "" : email)
-                .setToken(sessionManager.getToken().orElseGet(String::new))
-                .setUserPermissions(userPerm)
-                .build();
+        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_IS_ADMIN,
+                userPerm,  sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
@@ -262,12 +264,8 @@ public class ZookeeperClient implements AutoCloseable {
         UserPermissions userPerm = UserPermissions.newBuilder()
                 .setCanCreateDirectories(canCreate)
                 .build();
-        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
-                .setRequestType(RequestType.SET_CAN_CREATE_DIRECTORIES)
-                .setUserEmail(email == null ? "" : email)
-                .setToken(sessionManager.getToken().orElseGet(String::new))
-                .setUserPermissions(userPerm)
-                .build();
+        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_CAN_CREATE_DIRECTORIES,
+                userPerm, sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
@@ -276,12 +274,8 @@ public class ZookeeperClient implements AutoCloseable {
         if (directoryPermissions != null && !directoryPermissions.isEmpty()) {
             permBuilder.putAllDirectoryPermissions(directoryPermissions);
         }
-        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
-                .setRequestType(RequestType.SET_DIRECTORY_PERMISSIONS)
-                .setUserEmail(email == null ? "" : email)
-                .setToken(sessionManager.getToken().orElseGet(String::new))
-                .setUserPermissions(permBuilder.build())
-                .build();
+        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_DIRECTORY_PERMISSIONS,
+                permBuilder.build(), sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 

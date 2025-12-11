@@ -35,7 +35,7 @@ public class AuthzHandler implements MessageHandler {
 
     private void addHandlers() {
         handlers.put(RequestType.SET_CAN_CREATE_DIRECTORIES, this::setCanCreateDirectories);
-        handlers.put(RequestType.SET_IS_ADMIN, this::setISAdmin);
+        handlers.put(RequestType.SET_IS_ADMIN, this::setIsAdmin);
         handlers.put(RequestType.SET_DIRECTORY_PERMISSIONS, this::setDirectoriesPermissions);
         handlers.put(RequestType.GET, this::getUserPermissionsByEmail);
     }
@@ -121,7 +121,7 @@ public class AuthzHandler implements MessageHandler {
         return user.map(AuthzHandler::getSuccessUserPermissionsResponse).orElseGet(() -> getFailedUserPermissionsResponse(userEmail));
     }
 
-    public UserPermissionsResponse setISAdmin(UserPermissionsRequest request) {
+    public UserPermissionsResponse setIsAdmin(UserPermissionsRequest request) {
         String userEmail = request.getUserEmail();
         boolean isAdmin = request.getUserPermissions().getIsAdmin();
 
