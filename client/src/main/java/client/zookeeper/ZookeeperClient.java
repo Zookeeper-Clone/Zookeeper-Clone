@@ -187,6 +187,10 @@ public class ZookeeperClient implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        // Logout to notify server and invalidate session
+        if (isAuthenticated()) {
+            logout();
+        }
         sessionManager.close();
         if (raftClient != null) {
             raftClient.close();
