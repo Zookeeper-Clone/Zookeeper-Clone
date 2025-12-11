@@ -39,7 +39,9 @@ public class ZookeeperClient implements AutoCloseable {
                 AuthOperationType.REGISTER, email, password, sessionManager.getToken());
         return sendAuthRequest(authRequest, false);
     }
-
+    public RaftClient getRaftClient(){
+        return this.raftClient;
+    }
     public AuthenticationResult login(String email, String password) {
         AuthRequest authRequest = RequestFactory.buildAuthRequest(
                 AuthOperationType.LOGIN, email, password, sessionManager.getToken());

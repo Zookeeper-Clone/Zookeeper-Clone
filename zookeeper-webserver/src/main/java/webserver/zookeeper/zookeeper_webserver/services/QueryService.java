@@ -44,4 +44,3 @@ public class QueryService {
         return result.isSuccess() ? ResponseEntity.ok(result.getValue()) : ResponseEntity.badRequest().body(result.getMessage());
     }
 }
-

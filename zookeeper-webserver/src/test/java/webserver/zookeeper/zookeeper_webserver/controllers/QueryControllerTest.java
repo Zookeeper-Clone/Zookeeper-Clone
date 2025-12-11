@@ -15,16 +15,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import webserver.zookeeper.zookeeper_webserver.services.QueryService;
 import webserver.zookeeper.zookeeper_webserver.services.ZookeeperService;
+import webserver.zookeeper.zookeeper_webserver.services.MetricsService;
 
 public class QueryControllerTest {
 
     private MockMvc mockMvc;
 
-    @Mock
-    private QueryService queryService;
-
-    @Mock
-    private ZookeeperService zookeeperService;
+    @Mock private QueryService queryService;
+    @Mock private ZookeeperService zookeeperService;
+    @Mock private MetricsService metricsService;
 
     @InjectMocks
     private QueryController queryController;
@@ -37,7 +36,6 @@ public class QueryControllerTest {
 
     @Test
     void testRead() throws Exception {
-        QueryController.ReadRequest request = new QueryController.ReadRequest();
         ResponseEntity<String> responseEntity = ResponseEntity.ok("read-success");
         when(queryService.read(any())).thenReturn(responseEntity);
 
@@ -50,11 +48,14 @@ public class QueryControllerTest {
 
         verify(zookeeperService).setToken("token123");
         verify(queryService).read(any(QueryController.ReadRequest.class));
+
+        verify(metricsService).recordRequest();
+        verify(metricsService).recordSuccess();
+        verify(metricsService).recordLatency(anyLong());
     }
 
     @Test
     void testWrite() throws Exception {
-        QueryController.WriteRequest request = new QueryController.WriteRequest();
         ResponseEntity<String> responseEntity = ResponseEntity.ok("write-success");
         when(queryService.write(any())).thenReturn(responseEntity);
 
@@ -67,11 +68,14 @@ public class QueryControllerTest {
 
         verify(zookeeperService).setToken("token456");
         verify(queryService).write(any(QueryController.WriteRequest.class));
+
+        verify(metricsService).recordRequest();
+        verify(metricsService).recordSuccess();
+        verify(metricsService).recordLatency(anyLong());
     }
 
     @Test
     void testDelete() throws Exception {
-        QueryController.DeleteRequest request = new QueryController.DeleteRequest();
         ResponseEntity<String> responseEntity = ResponseEntity.ok("delete-success");
         when(queryService.delete(any())).thenReturn(responseEntity);
 
@@ -84,5 +88,9 @@ public class QueryControllerTest {
 
         verify(zookeeperService).setToken("token789");
         verify(queryService).delete(any(QueryController.DeleteRequest.class));
+
+        verify(metricsService).recordRequest();
+        verify(metricsService).recordSuccess();
+        verify(metricsService).recordLatency(anyLong());
     }
 }
