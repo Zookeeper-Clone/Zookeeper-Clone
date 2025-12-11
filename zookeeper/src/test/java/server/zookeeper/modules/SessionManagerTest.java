@@ -104,8 +104,8 @@ class SessionManagerTest {
     }
 
     @Test
-    @DisplayName("Should refresh session heartbeat")
-    void refreshSession_success() {
+    @DisplayName("Should extend session heartbeat")
+    void extendSession_success() {
         String token = "token";
         long oldTime = System.currentTimeMillis() - 10000;
         Session session = Session.newBuilder()
@@ -115,7 +115,7 @@ class SessionManagerTest {
 
         when(sessionRepository.getSession(token)).thenReturn(Optional.of(session));
 
-        sessionManager.refreshSession(token);
+        sessionManager.extendSession(token);
 
         ArgumentCaptor<Session> captor = ArgumentCaptor.forClass(Session.class);
         verify(sessionRepository).saveSession(captor.capture());
