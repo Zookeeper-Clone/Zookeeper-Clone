@@ -14,6 +14,8 @@ import server.zookeeper.util.PasswordHasher;
 
 import java.util.*;
 
+import static java.util.Objects.requireNonNull;
+
 public class AuthHandler implements MessageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(AuthHandler.class);
     private static final String HANDLER_TYPE = "AUTH";
@@ -31,18 +33,11 @@ public class AuthHandler implements MessageHandler {
         AuthResponse handle(AuthRequest request);
     }
 
-    private static <T> T requireNonNull(T value, String name) {
-        if (value == null) {
-            throw new IllegalArgumentException(name + " cannot be null");
-        }
-        return value;
-    }
-
     public AuthHandler(AuthRepository authRepository, PasswordHasher passwordHasher, GoogleIdTokenVerifier verifier, SessionManager sessionManager) {
-        this.authRepository = requireNonNull(authRepository, "AuthRepository");
-        this.passwordHasher = requireNonNull(passwordHasher, "PasswordHasher");
-        this.verifier = requireNonNull(verifier, "GoogleIdTokenVerifier");
-        this.sessionManager = requireNonNull(sessionManager, "SessionManager");
+        this.authRepository = requireNonNull(authRepository, "AuthRepository Can't be Null");
+        this.passwordHasher = requireNonNull(passwordHasher, "PasswordHasher Can't be Null");
+        this.verifier = requireNonNull(verifier, "GoogleIdTokenVerifier Can't be Null");
+        this.sessionManager = requireNonNull(sessionManager, "SessionManager Can't be Null");
         this.operationHandlers = initializeOperationHandlers();
 
         LOG.info("AuthHandler initialized successfully");

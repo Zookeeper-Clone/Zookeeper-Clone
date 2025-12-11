@@ -31,11 +31,7 @@ import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.AuthRepository;
 import server.zookeeper.DB.DataBase;
 import server.zookeeper.DB.SessionRepository;
-import server.zookeeper.modules.AuthHandler;
-import server.zookeeper.modules.MessageRouter;
-import server.zookeeper.modules.QueryHandler;
-import server.zookeeper.modules.SessionCleanupWorker;
-import server.zookeeper.modules.SessionManager;
+import server.zookeeper.modules.*;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.proto.MessageWrapper;
 import server.zookeeper.proto.auth.AuthOperationType;
@@ -71,9 +67,11 @@ public class KVStateMachine extends BaseStateMachine {
                     .build();
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
+            AuthzHandler authzHandler = new AuthzHandler(sessionRepository, authRepository);
 
             messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);
+            messageRouter.registerHandler(MessageType.PERMISSIONS, authzHandler);
             LOG.info("KVStateMachine initialized with MessageRouter");
         } catch (Exception e) {
             LOG.error("Error initialzing KVStateMachine");

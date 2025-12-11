@@ -12,11 +12,16 @@ import server.zookeeper.proto.MessageWrapper;
 import server.zookeeper.proto.auth.AuthOperationType;
 import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.auth.AuthResponse;
+import server.zookeeper.proto.permissions.RequestType;
+import server.zookeeper.proto.permissions.UserPermissions;
+import server.zookeeper.proto.permissions.UserPermissionsRequest;
+import server.zookeeper.proto.permissions.UserPermissionsResponse;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -225,6 +230,115 @@ public class ZookeeperClient implements AutoCloseable {
     public QueryResult delete(String key, String directory) {
         UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, sessionManager.getToken());
         return sendQueryRequest(q, false);
+    }
+
+    private PermissionsResult sendPermissionsRequest(UserPermissionsRequest request, boolean isReadOnly) {
+        return sendRequest(request, MessageType.PERMISSIONS, isReadOnly, this::parsePermissionsResponse);
+    }
+
+    public PermissionsResult getUserPermissionsByEmail(String email) {
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.GET)
+                .setUserEmail(email == null ? "" : email)
+                .setToken(sessionManager.getToken().orElseGet(String::new))
+                .build();
+        return sendPermissionsRequest(request, true);
+    }
+
+    public PermissionsResult setIsAdmin(String email, boolean isAdmin) {
+        UserPermissions userPerm = UserPermissions.newBuilder()
+                .setIsAdmin(isAdmin)
+                .build();
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_IS_ADMIN)
+                .setUserEmail(email == null ? "" : email)
+                .setToken(sessionManager.getToken().orElseGet(String::new))
+                .setUserPermissions(userPerm)
+                .build();
+        return sendPermissionsRequest(request, false);
+    }
+
+    public PermissionsResult setCanCreateDirectories(String email, boolean canCreate) {
+        UserPermissions userPerm = UserPermissions.newBuilder()
+                .setCanCreateDirectories(canCreate)
+                .build();
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_CAN_CREATE_DIRECTORIES)
+                .setUserEmail(email == null ? "" : email)
+                .setToken(sessionManager.getToken().orElseGet(String::new))
+                .setUserPermissions(userPerm)
+                .build();
+        return sendPermissionsRequest(request, false);
+    }
+
+    public PermissionsResult setDirectoryPermissions(String email, Map<String, Integer> directoryPermissions) {
+        UserPermissions.Builder permBuilder = UserPermissions.newBuilder();
+        if (directoryPermissions != null && !directoryPermissions.isEmpty()) {
+            permBuilder.putAllDirectoryPermissions(directoryPermissions);
+        }
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_DIRECTORY_PERMISSIONS)
+                .setUserEmail(email == null ? "" : email)
+                .setToken(sessionManager.getToken().orElseGet(String::new))
+                .setUserPermissions(permBuilder.build())
+                .build();
+        return sendPermissionsRequest(request, false);
+    }
+
+    private PermissionsResult parsePermissionsResponse(ByteString responseBytes) {
+        if (responseBytes == null) {
+            return PermissionsResult.failure("Invalid server response");
+        }
+        try {
+            UserPermissionsResponse resp = UserPermissionsResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
+            return new PermissionsResult(resp.getSuccess(), resp.getErrorMessage(),
+                    resp.hasUserPermissions() ? resp.getUserPermissions() : null);
+        } catch (InvalidProtocolBufferException e) {
+            LOG.error("Failed to parse permissions response", e);
+            return PermissionsResult.failure("Invalid server response");
+        }
+    }
+
+    public static class PermissionsResult {
+        private final boolean success;
+        private final String message;
+        private final UserPermissions userPermissions;
+
+        private PermissionsResult(boolean success, String message, UserPermissions userPermissions) {
+            this.success = success;
+            this.message = message;
+            this.userPermissions = userPermissions;
+        }
+
+        public static PermissionsResult success(String message, UserPermissions perms) {
+            return new PermissionsResult(true, message, perms);
+        }
+
+        public static PermissionsResult success(UserPermissions perms) {
+            return new PermissionsResult(true, null, perms);
+        }
+
+        public static PermissionsResult failure(String message) {
+            return new PermissionsResult(false, message, null);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public UserPermissions getUserPermissions() {
+            return userPermissions;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("PermissionsResult{success=%s, message='%s', userPermissions=%s}",
+                    success, message, userPermissions);
+        }
     }
 
     public static class AuthenticationResult {

@@ -16,6 +16,8 @@ enum MessageType {
 
   // Authentication operations (login, register, etc.)
   AUTH = 2;
+
+  PERMISSIONS = 3;
 }
 
 // Wrapper message to route different message types
