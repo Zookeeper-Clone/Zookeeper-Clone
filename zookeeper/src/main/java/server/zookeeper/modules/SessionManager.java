@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.proto.session.Session;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,21 +62,46 @@ public class SessionManager {
         return true;
     }
 
-    public void refreshSession(String token) {
+    public boolean extendSession(String token) {
         Optional<Session> sessionOpt = sessionRepository.getSession(token);
-        if (sessionOpt.isPresent()) {
-            LOG.info("Refreshing session with token {}", token);
-            Session session = sessionOpt.get();
-            Session updated = session.toBuilder()
-                    .setLastHeartbeatTime(System.currentTimeMillis())
-                    .build();
-            sessionRepository.saveSession(updated);
-        } else {
-            LOG.warn("Cannot refresh session. Session with token {} not found", token);
+        if (sessionOpt.isEmpty()) {
+            LOG.warn("Cannot extend session. Session with token {} not found", token);
+            return false;
         }
+
+        LOG.info("Extending session with token {}", token);
+        Session updated = sessionOpt.get().toBuilder()
+                .setLastHeartbeatTime(System.currentTimeMillis())
+                .build();
+        sessionRepository.saveSession(updated);
+        return true;
     }
 
     public void invalidateSession(String token) {
         sessionRepository.deleteSession(token);
+    }
+
+    /**
+     * Cleanup all expired sessions.
+     * A session is expired if its lastHeartbeatTime is more than SESSION_TIMEOUT_MS ago.
+     * @return the number of sessions that were cleaned up
+     */
+    public int cleanupExpiredSessions() {
+        long now = System.currentTimeMillis();
+        List<Session> sessions = sessionRepository.getAllSessions();
+        int expiredCount = 0;
+
+        for (Session session : sessions) {
+            long lastHeartbeat = session.getLastHeartbeatTime();
+            if (now - lastHeartbeat > SESSION_TIMEOUT_MS) {
+                String token = session.getSessionToken();
+                LOG.info("Session expired for user: {}, last heartbeat was {} ms ago",
+                        session.getUserEmail(), now - lastHeartbeat);
+                invalidateSession(token);
+                expiredCount++;
+            }
+        }
+
+        return expiredCount;
     }
 }
