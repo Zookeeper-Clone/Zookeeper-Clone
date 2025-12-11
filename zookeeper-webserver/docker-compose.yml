@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  zookeeper-webserver:
+    image: zookeeper-webserver
+    build: .
+    container_name: zookeeper-webserver
+    ports:
+      - "8080:8080"
+    environment:
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      BASE_URL: "http://localhost:8080"
+    restart: unless-stopped
