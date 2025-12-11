@@ -37,6 +37,13 @@ public class RequestFactory {
                 .build();
     }
 
+    public static AuthRequest buildLogoutRequest(String token) {
+        return AuthRequest.newBuilder()
+                .setOperation(AuthOperationType.LOGOUT)
+                .setSessionToken(token)
+                .build();
+    }
+
     public static UserQuery buildUserQuery(QueryType type, String key, String value, String directory, Optional<String> token) {
         UserQuery.Builder builder = UserQuery.newBuilder()
                 .setQueryType(type)
