@@ -105,6 +105,27 @@ public class ZookeeperClient implements AutoCloseable {
         return sessionManager.getToken();
     }
 
+    /**
+     * Logout and invalidate the current session.
+     * @return AuthenticationResult indicating success or failure
+     */
+    public AuthenticationResult logout() {
+        Optional<String> token = sessionManager.getToken();
+        if (token.isEmpty()) {
+            LOG.warn("Logout called but no active session");
+            return AuthenticationResult.failure("No active session to logout");
+        }
+
+        AuthRequest authRequest = RequestFactory.buildLogoutRequest(token.get());
+        AuthenticationResult result = sendAuthRequest(authRequest, false);
+
+        // Always invalidate local session regardless of server response
+        sessionManager.invalidateSession();
+        LOG.info("User logged out");
+
+        return result;
+    }
+
     private AuthenticationResult sendAuthRequest(AuthRequest authRequest, boolean isReadOnly) {
         return sendRequest(authRequest, MessageType.AUTH, isReadOnly, this::parseAuthResponse);
     }
@@ -166,6 +187,10 @@ public class ZookeeperClient implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        // Logout to notify server and invalidate session
+        if (isAuthenticated()) {
+            logout();
+        }
         sessionManager.close();
         if (raftClient != null) {
             raftClient.close();

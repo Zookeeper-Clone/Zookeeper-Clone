@@ -7,6 +7,9 @@ import server.zookeeper.proto.session.Session;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 
@@ -72,6 +75,29 @@ public class SessionRepository {
             LOG.error("Failed to delete session", e);
             throw new RuntimeException("Failed to delete session", e);
         }
+    }
+
+    /**
+     * Get all sessions from the database.
+     * @return List of all sessions
+     */
+    public List<Session> getAllSessions() {
+        List<Session> sessions = new ArrayList<>();
+        try {
+            List<Map.Entry<byte[], byte[]>> entries = database.getAllEntries(SESSION_DIRECTORY);
+            for (Map.Entry<byte[], byte[]> entry : entries) {
+                try {
+                    Session session = Session.parseFrom(entry.getValue());
+                    sessions.add(session);
+                } catch (InvalidProtocolBufferException e) {
+                    LOG.warn("Corrupted session data, skipping entry", e);
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Failed to retrieve all sessions", e);
+            throw new RuntimeException("Failed to retrieve all sessions", e);
+        }
+        return sessions;
     }
 
     private byte[] tokenToKey(String token) {

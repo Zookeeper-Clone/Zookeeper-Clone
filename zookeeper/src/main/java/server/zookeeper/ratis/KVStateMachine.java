@@ -37,6 +37,7 @@ import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.modules.AuthHandler;
 import server.zookeeper.modules.MessageRouter;
 import server.zookeeper.modules.QueryHandler;
+import server.zookeeper.modules.SessionCleanupWorker;
 import server.zookeeper.modules.SessionManager;
 import server.zookeeper.proto.MessageType;
 import server.zookeeper.proto.MessageWrapper;
@@ -51,6 +52,7 @@ public class KVStateMachine extends BaseStateMachine {
     private final MessageRouter messageRouter;
     private final DataBase db;
     private final FileListStateMachineStorage storage = new FileListStateMachineStorage();
+    private final SessionCleanupWorker sessionCleanupWorker;
 
 
     public KVStateMachine(DataBase keyValStore) {
@@ -60,6 +62,9 @@ public class KVStateMachine extends BaseStateMachine {
             QueryHandler queryHandler = new QueryHandler(keyValStore);
             this.messageRouter = new MessageRouter(queryHandler, sessionManager);
             this.db = keyValStore;
+
+            this.sessionCleanupWorker = new SessionCleanupWorker(sessionManager);
+            this.sessionCleanupWorker.start();
 
             AuthRepository authRepository = new AuthRepository(keyValStore);
             PasswordHasher passwordHasher = PasswordHasher.getInstance();
@@ -237,5 +242,13 @@ public class KVStateMachine extends BaseStateMachine {
     @Override
     public StateMachineStorage getStateMachineStorage() {
         return storage;
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        if (sessionCleanupWorker != null) {
+            sessionCleanupWorker.close();
+        }
     }
 }

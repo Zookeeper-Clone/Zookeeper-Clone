@@ -583,7 +583,7 @@ class AuthHandlerTest {
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
-        verify(sessionManager).refreshSession(token);
+        verify(sessionManager).extendSession(token);
     }
 
     @Test
@@ -601,7 +601,7 @@ class AuthHandlerTest {
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
-        verify(sessionManager, never()).refreshSession(anyString());
+        verify(sessionManager, never()).extendSession(anyString());
     }
 
 }

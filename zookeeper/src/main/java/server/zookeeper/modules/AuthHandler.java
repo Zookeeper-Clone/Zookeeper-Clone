@@ -389,7 +389,7 @@ public class AuthHandler implements MessageHandler {
         String token = request.getSessionToken();
         LOG.info("Processing HEARTBEAT for session token: {}", token);
         if (sessionManager.validateSession(token)) {
-            sessionManager.refreshSession(token);
+            sessionManager.extendSession(token);
             return AuthResponse.newBuilder().setSuccess(true).build();
         }
         return createErrorAuthResponse("Invalid or expired session token");
