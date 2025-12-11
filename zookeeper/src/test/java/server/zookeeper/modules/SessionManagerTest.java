@@ -56,7 +56,7 @@ class SessionManagerTest {
         Session session = Session.newBuilder()
                 .setSessionToken(token)
                 .setIsValid(true)
-                .setLastHeartbeatTime(System.currentTimeMillis())
+                .setLastHeartbeatTime(System.nanoTime())
                 .build();
 
         when(sessionRepository.getSession(token)).thenReturn(Optional.of(session));
@@ -68,8 +68,8 @@ class SessionManagerTest {
     @DisplayName("Should invalidate expired session")
     void validateSession_expired() {
         String token = "expiredToken";
-        // 5 minutes ago (timeout is 2)
-        long past = System.currentTimeMillis() - (5 * 60 * 1000);
+        // 5 minutes ago in nanoseconds (timeout is 2 minutes)
+        long past = System.nanoTime() - (5L * 60 * 1_000_000_000L);
         Session session = Session.newBuilder()
                 .setSessionToken(token)
                 .setIsValid(true)
@@ -107,7 +107,7 @@ class SessionManagerTest {
     @DisplayName("Should extend session heartbeat")
     void extendSession_success() {
         String token = "token";
-        long oldTime = System.currentTimeMillis() - 10000;
+        long oldTime = System.nanoTime() - 10_000_000_000L; // 10 seconds ago in nanoseconds
         Session session = Session.newBuilder()
                 .setSessionToken(token)
                 .setLastHeartbeatTime(oldTime)
