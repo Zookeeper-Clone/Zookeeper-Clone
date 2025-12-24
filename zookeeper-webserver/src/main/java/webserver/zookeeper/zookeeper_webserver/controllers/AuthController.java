@@ -58,4 +58,22 @@ public class AuthController {
     public Map<String, String> getToken(@CookieValue("SESSION_TOKEN") String token) {
         return Map.of("token", token);
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@CookieValue(value = "SESSION_TOKEN", required = false) String token, 
+                                     HttpServletResponse response) {
+        AuthResult result = auth.logout();
+        zookeeperService.setToken(null);
+        
+        Cookie cookie = new Cookie("SESSION_TOKEN", "");
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+        
+        if (!result.success()) {
+            return ResponseEntity.badRequest().body(result.message());
+        }
+        return ResponseEntity.ok("Logged out successfully");
+    }
 }

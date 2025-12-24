@@ -31,7 +31,7 @@ export default function EditPage() {
   const [valueInput, setValueInput] = useState("");
   const [isEphemeral, setIsEphemeral] = useState(false);
   const [operationType, setOperationType] = useState("create"); // "create" or "update"
-  
+
   // Error dialog state
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -187,11 +187,11 @@ export default function EditPage() {
 
       if (!response.ok) {
         let errorMsg = `Request failed with status ${response.status}`;
-        
+
         try {
           // Get response as text first
           const responseText = await response.text();
-          
+
           if (responseText) {
             // Try to parse it as JSON
             try {
@@ -206,10 +206,10 @@ export default function EditPage() {
           console.error("Error reading response:", error);
           // If all else fails, use the default error message
         }
-        
+
         setErrorMessage(errorMsg);
         setErrorDialogOpen(true);
-        
+
         pushHistory({
           key,
           directory: directory || "-",
@@ -235,7 +235,7 @@ export default function EditPage() {
     } catch (error) {
       setErrorMessage(`Network error: ${error.message}`);
       setErrorDialogOpen(true);
-      
+
       pushHistory({
         key,
         directory: directory || "-",
@@ -249,7 +249,14 @@ export default function EditPage() {
   };
 
   const handleWrite = () => {
-    sendCommand("write", keyInput, directoryInput, valueInput, isEphemeral, operationType);
+    sendCommand(
+      "write",
+      keyInput,
+      directoryInput,
+      valueInput,
+      isEphemeral,
+      operationType
+    );
   };
 
   const handleDelete = () => {
@@ -257,7 +264,14 @@ export default function EditPage() {
   };
 
   const handleExecute = (op) => {
-    sendCommand(op.type, op.key, op.directory, op.value, op.isEphemeral, op.operationType || "create");
+    sendCommand(
+      op.type,
+      op.key,
+      op.directory,
+      op.value,
+      op.isEphemeral,
+      op.operationType || "create"
+    );
   };
 
   return (
@@ -408,7 +422,9 @@ export default function EditPage() {
 
               {newOpType === "write" && (
                 <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel id="op-operation-type-label">Operation Type</InputLabel>
+                  <InputLabel id="op-operation-type-label">
+                    Operation Type
+                  </InputLabel>
                   <Select
                     labelId="op-operation-type-label"
                     value={newOpOperationType}
@@ -461,9 +477,7 @@ export default function EditPage() {
                     <TableCell>{op.value}</TableCell>
                     <TableCell>{op.type}</TableCell>
                     <TableCell>
-                      {op.type === "write"
-                        ? op.operationType || "create"
-                        : "-"}
+                      {op.type === "write" ? op.operationType || "create" : "-"}
                     </TableCell>
                     <TableCell>
                       {op.type === "write"
@@ -575,15 +589,10 @@ export default function EditPage() {
       </Grid>
 
       {/* Error Dialog */}
-      <Dialog
-        open={errorDialogOpen}
-        onClose={() => setErrorDialogOpen(false)}
-      >
+      <Dialog open={errorDialogOpen} onClose={() => setErrorDialogOpen(false)}>
         <DialogTitle>Error</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {errorMessage}
-          </DialogContentText>
+          <DialogContentText>{errorMessage}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setErrorDialogOpen(false)} color="primary">
