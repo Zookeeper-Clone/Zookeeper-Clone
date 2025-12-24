@@ -77,10 +77,6 @@ public class SessionRepository {
         }
     }
 
-    /**
-     * Get all sessions from the database.
-     * @return List of all sessions
-     */
     public List<Session> getAllSessions() {
         List<Session> sessions = new ArrayList<>();
         try {

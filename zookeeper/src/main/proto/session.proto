@@ -2,15 +2,20 @@ syntax = "proto3";
 
 package zookeeper.session;
 
-option java_package = "server.zookeeper.proto.session";
-option java_outer_classname = "SessionProto";
 option java_multiple_files = true;
+option java_outer_classname = "SessionProto";
+option java_package = "server.zookeeper.proto.session";
 
 message Session {
   string session_token = 1;
   string user_email = 2;
-  // TODO: we still need to figure out session expiration management
   int64 creation_time = 3;
   int64 last_heartbeat_time = 4;
   bool is_valid = 5;
+  repeated EphemeralEntry ephemeral_entries = 6;
+}
+
+message EphemeralEntry {
+  string directory = 1;
+  string key = 2;
 }

@@ -22,13 +22,15 @@ import static org.mockito.Mockito.*;
 public class QueryHandlerTest {
 
     private DataBase mockDb;
+    private SessionManager mockSessionManager;
     private QueryHandler handler;
     private MockedStatic<ReservedDirectories> reservedMock;
 
     @BeforeEach
     public void setUp() {
         mockDb = mock(DataBase.class);
-        handler = new QueryHandler(mockDb);
+        mockSessionManager = mock(SessionManager.class);
+        handler = new QueryHandler(mockDb, mockSessionManager);
         reservedMock = mockStatic(ReservedDirectories.class);
     }
 
@@ -69,7 +71,7 @@ public class QueryHandlerTest {
 
     @Test
     public void testCanHandleGarbagePayload() {
-        assertFalse(handler.canHandle(new byte[]{1, 2, 3, 4, 5}));
+        assertFalse(handler.canHandle(new byte[] { 1, 2, 3, 4, 5 }));
     }
 
     @Test
@@ -98,7 +100,7 @@ public class QueryHandlerTest {
 
     @Test
     public void testHandlePayloadParseError() throws InvalidProtocolBufferException {
-        Message msg = handler.handle(new byte[]{1, 2, 3}, false);
+        Message msg = handler.handle(new byte[] { 1, 2, 3 }, false);
         QueryResponse res = parseResponse(msg);
         assertFalse(res.getSuccess());
         assertTrue(res.getErrorMessage().startsWith("Failed to handle query"));
@@ -414,7 +416,8 @@ public class QueryHandlerTest {
 
     @Test
     public void testReservedDirectoryCheckThrowsException() throws InvalidProtocolBufferException {
-        reservedMock.when(() -> ReservedDirectories.isReserved(any())).thenThrow(new RuntimeException("Reserved Check Fail"));
+        reservedMock.when(() -> ReservedDirectories.isReserved(any()))
+                .thenThrow(new RuntimeException("Reserved Check Fail"));
 
         UserQuery query = createQuery(QueryType.GET, "k", "v", "sys");
         Message msg = handler.handle(query.toByteArray(), false);
@@ -422,5 +425,29 @@ public class QueryHandlerTest {
 
         assertFalse(res.getSuccess());
         assertTrue(res.getErrorMessage().contains("Reserved Check Fail"));
+    }
+
+    @Test
+    public void testCreateEphemeralEntry() throws Exception {
+        String key = "ephemeralKey";
+        String value = "ephemeralValue";
+        String sessionToken = "session123";
+        String directory = "temp";
+
+        UserQuery query = UserQuery.newBuilder()
+                .setQueryType(QueryType.WRITE)
+                .setKey(key)
+                .setValue(value)
+                .setDirectory(directory)
+                .setSessionToken(sessionToken)
+                .setIsEphemeral(true)
+                .build();
+
+        Message responseMsg = handler.handle(query.toByteArray(), true);
+        QueryResponse response = QueryResponse.parseFrom(responseMsg.getContent().toByteArray());
+
+        assertTrue(response.getSuccess());
+        verify(mockDb).put(eq(key.getBytes()), eq(value.getBytes()), eq(directory));
+        verify(mockSessionManager).addEphemeralEntry(sessionToken, key, directory);
     }
 }
