@@ -53,6 +53,16 @@ DemoPageContent.propTypes = { pathname: PropTypes.string.isRequired };
 function Home() {
   const router = useDemoRouter('read');
 
+  const rawPermissions = localStorage.getItem('permissions');
+  const userPermissions = rawPermissions ? JSON.parse(rawPermissions) : null;
+
+  const filteredNavigation = NAVIGATION.filter(item => {
+    if (item.segment === 'permissions') {
+      return userPermissions?.admin === true;
+    }
+    return true;
+  });
+  
   const handleLogOut = () => {
     localStorage.removeItem('auth');
     localStorage.removeItem('token');
@@ -65,7 +75,7 @@ function Home() {
   return (
     <DemoProvider>
       <AppProvider
-        navigation={NAVIGATION}
+        navigation={filteredNavigation}
         router={router}
         theme={demoTheme}
         branding={{

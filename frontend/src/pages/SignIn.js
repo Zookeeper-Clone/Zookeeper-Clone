@@ -48,13 +48,13 @@ export default function SignIn() {
 
       const body = await response.text();
       console.log("Login response:", body);
-
+      localStorage.setItem("email", email)
       localStorage.setItem("auth", "true");
 
-      sessionStorage.setItem("sessionToken", "frontend-session-placeholder");
+      await loadSession(email)
 
-      loadSession()
-
+      const permissions = localStorage.getItem("permissions")
+      console.log(permissions)
       navigate("/home");
     } catch (err) {
       console.error(err);

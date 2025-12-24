@@ -1,9 +1,11 @@
 package webserver.zookeeper.zookeeper_webserver.dto;
 
+import java.util.Map;
+
 public class UserDTO {
-    private String name;
+
     private String email;
-    private String permission; // "read" | "edit"
+    private Map<String, Integer> permissions;
     private boolean admin;
 
     public String getEmail() {
@@ -14,12 +16,12 @@ public class UserDTO {
         this.email = email;
     }
 
-    public String getName() {
-        return name;
+    public Map<String, Integer> getPermissions() {
+        return permissions;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setPermissions(Map<String, Integer> permissions) {
+        this.permissions = permissions;
     }
 
     public boolean isAdmin() {
@@ -29,13 +31,5 @@ public class UserDTO {
     public void setAdmin(boolean admin) {
         this.admin = admin;
     }
-
-    public String getPermission() {
-        return permission;
-    }
-
-    public void setPermission(String permission) {
-        this.permission = permission;
-    }
-
 }
+

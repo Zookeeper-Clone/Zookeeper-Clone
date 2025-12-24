@@ -6,6 +6,9 @@ import org.springframework.stereotype.Service;
 import webserver.zookeeper.zookeeper_webserver.dto.UpdatePermissionRequest;
 import webserver.zookeeper.zookeeper_webserver.dto.UserDTO;
 
+import java.util.HashMap;
+import java.util.List;
+
 @Service
 public class UserPermissionService {
 
@@ -29,16 +32,38 @@ public class UserPermissionService {
         UserDTO dto = new UserDTO();
         dto.setEmail(email);
         dto.setAdmin(perms.getIsAdmin());
-
-        // UI mapping rule (you already use this on frontend)
-        dto.setPermission(perms.getIsAdmin() ? "edit" : "read");
-
+        dto.setPermissions(perms.getDirectoryPermissionsMap());
+        System.out.println(email);
+        System.out.println(perms.getIsAdmin());
+        System.out.println(perms.getDirectoryPermissionsMap());
         return dto;
     }
-
+    public void setIsAdmin(String email){
+        zkClient.setIsAdmin(email, true);
+    }
+    public void setCanCreateDirectory(String email){
+        zkClient.setCanCreateDirectories(email, true);
+    }
     public void updatePermission(String email, UpdatePermissionRequest req) {
-        if (req.getAdmin() != null) {
-            zkClient.setIsAdmin(email, req.getAdmin());
+        int permissionNum = getPermissionNum(req);
+        HashMap<String, Integer> permissionsMap = new HashMap<>();
+        permissionsMap.put(req.getDirectory(),permissionNum);
+        zkClient.setDirectoryPermissions(email, permissionsMap);
+    }
+
+    private static int getPermissionNum(UpdatePermissionRequest req) {
+        List<String> permissions = req.getPermissions();
+        int permissionNum = 0;
+        for(String permission : permissions){
+            if(permission.equals("create"))
+                permissionNum+=1;
+            if(permission.equals("read"))
+                permissionNum+=2;
+            if(permission.equals("update"))
+                permissionNum+=4;
+            if(permission.equals("delete"))
+                permissionNum+=8;
         }
+        return permissionNum;
     }
 }
