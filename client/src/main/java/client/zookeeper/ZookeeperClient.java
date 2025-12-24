@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 public class ZookeeperClient implements AutoCloseable {
@@ -140,14 +139,14 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     private AuthenticationResult sendAuthRequest(AuthRequest authRequest, boolean isReadOnly) {
-        return sendRequest(authRequest, MessageType.AUTH, isReadOnly, this::parseAuthResponse, false);
+        return sendRequest(authRequest, MessageType.AUTH, isReadOnly, this::parseAuthResponse);
     }
 
-    private QueryResult sendQueryRequest(UserQuery userQyery, boolean isReadOnly) {
-        return sendRequest(userQyery, MessageType.QUERY, isReadOnly, this::parseQueryResponse, false);
+    private QueryResult sendQueryRequest(UserQuery userQuery, boolean isReadOnly) {
+        return sendRequest(userQuery, MessageType.QUERY, isReadOnly, this::parseQueryResponse);
     }
 
-    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser, boolean async) {
+    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser) {
         try {
             MessageWrapper wrapper = MessageWrapper.newBuilder()
                     .setType(type)
@@ -156,17 +155,10 @@ public class ZookeeperClient implements AutoCloseable {
                     .build();
             Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
 
-            RaftClientReply reply;
-            if (async) {
-                CompletableFuture<RaftClientReply> futReply = isReadOnly
-                        ? raftClient.async().sendReadOnly(message)
-                        : raftClient.async().send(message);
-                reply = futReply.get();
-            } else {
-                reply = isReadOnly
+            RaftClientReply reply = isReadOnly
                         ? raftClient.io().sendReadOnly(message)
                         : raftClient.io().send(message);
-            }
+
             if (!reply.isSuccess()) {
                 return responseParser.apply(null);
             }
@@ -174,7 +166,22 @@ public class ZookeeperClient implements AutoCloseable {
         } catch (IOException e) {
             LOG.error("Request failed", e);
             return responseParser.apply(null);
-        } catch (ExecutionException | InterruptedException e) {
+        }
+    }
+
+    private CompletableFuture<RaftClientReply> sendAsyncRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly) {
+        try {
+            MessageWrapper wrapper = MessageWrapper.newBuilder()
+                    .setType(type)
+                    .setPayload(request.toByteString())
+                    .setSessionToken(sessionManager.getToken().orElseGet(String::new))
+                    .build();
+            Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
+
+            return isReadOnly
+                    ? raftClient.async().sendReadOnly(message)
+                    : raftClient.async().send(message);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -255,7 +262,7 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     private PermissionsResult sendPermissionsRequest(UserPermissionsRequest request, boolean isReadOnly) {
-        return sendRequest(request, MessageType.PERMISSIONS, isReadOnly, this::parsePermissionsResponse, false);
+        return sendRequest(request, MessageType.PERMISSIONS, isReadOnly, this::parsePermissionsResponse);
     }
 
     public PermissionsResult getUserPermissionsByEmail(String email) {
@@ -446,28 +453,62 @@ public class ZookeeperClient implements AutoCloseable {
     private class WatchHandler {
 
         public void sendWatchRequest(String key, String directory) {
-            UserQuery query = RequestFactory.buildUserQuery(QueryType.WATCH, key, "", directory, sessionManager.getToken());
-            WatcherResult res = sendRequest(query, MessageType.QUERY, true, this::parseWatcherResponse, true);
+            UserQuery query = RequestFactory.buildUserQuery(
+                    QueryType.WATCH, key, "", directory, sessionManager.getToken());
+            CompletableFuture<RaftClientReply> res = sendAsyncRequest(query, MessageType.QUERY, true);
 
-            if (!res.isSuccess()) {
-                LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}", key, directory, res.getErrorMessage());
-            } else {
-                LOG.info("Successfully set watch on key: {} in directory: {}", key, directory);
-                watcher.process(res.getWatchEvent());
-            }
+            res.whenCompleteAsync((raftClientReply, throwable) -> {
+                if (throwable != null) {
+                    LOG.error("Watch request failed for key: {} dir: {}", key, directory, throwable);
+                    return;
+                }
+
+                if (raftClientReply == null) {
+                    LOG.error("Watch request returned null reply for key: {} dir: {}", key, directory);
+                    return;
+                }
+
+                if (!raftClientReply.isSuccess()) {
+                    // Attempt to parse any error payload if present
+                    if (raftClientReply.getMessage() != null) {
+                        WatcherResult watcherResult = parseWatcherResponse(raftClientReply.getMessage().getContent());
+                        LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
+                                key, directory, watcherResult.getErrorMessage());
+                    } else {
+                        LOG.error("Failed to set watch on key: {} in directory: {}. reply.isSuccess==false and no message present",
+                                key, directory);
+                    }
+                    return;
+                }
+
+                ByteString content = raftClientReply.getMessage() == null ? null : raftClientReply.getMessage().getContent();
+                WatcherResult watcherResult = parseWatcherResponse(content);
+                if (!watcherResult.isSuccess()) {
+                    LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
+                            key, directory, watcherResult.getErrorMessage());
+                } else {
+                    LOG.info("Successfully set watch on key: {} in directory: {}", key, directory);
+                    try {
+                        watcher.process(watcherResult.getWatchEvent());
+                    } catch (Exception e) {
+                        LOG.error("Watcher.process threw an exception for key: {} dir: {}", key, directory, e);
+                    }
+                }
+            });
         }
 
         public WatcherResult parseWatcherResponse(ByteString responseBytes) {
+
+            if (responseBytes == null) {
+                return new WatcherResult(false, "null response", null);
+            }
 
             QueryResponse response;
             try {
                 response = QueryResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
             } catch (InvalidProtocolBufferException e) {
-                throw new RuntimeException(e);
-            }
-
-            if (response == null) {
-                return new WatcherResult(false, "null response", null);
+                LOG.error("Failed to parse watcher response", e);
+                return new WatcherResult(false, "Invalid server response", null);
             }
 
             boolean success = response.getSuccess();
@@ -532,3 +573,4 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
 }
+
