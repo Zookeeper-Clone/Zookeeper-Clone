@@ -23,10 +23,21 @@ public class QueryService {
     }
 
     public ResponseEntity<String> write(QueryController.WriteRequest req) {
-        return handleQueryResult(
-                req.getDirectory() == null ? zookeeperClient.write(req.getKey(), req.getValue(), req.getIsEphemeral())
-                        : zookeeperClient.write(req.getKey(), req.getValue(), req.getDirectory(),
-                                req.getIsEphemeral()));
+        return req.getIsUpdate()
+                ? handleUpdate(req)
+                : handleCreate(req);
+    }
+
+    private ResponseEntity<String> handleUpdate(QueryController.WriteRequest req) {
+        return req.getDirectory() == null
+                ? handleQueryResult(zookeeperClient.update(req.getKey(), req.getValue()))
+                : handleQueryResult(zookeeperClient.update(req.getKey(), req.getValue(), req.getDirectory()));
+    }
+
+    private ResponseEntity<String> handleCreate(QueryController.WriteRequest req) {
+        return req.getDirectory() == null
+                ? handleQueryResult(zookeeperClient.create(req.getKey(), req.getValue(), req.getIsEphemeral()))
+                : handleQueryResult(zookeeperClient.create(req.getKey(), req.getValue(), req.getDirectory(), req.getIsEphemeral()));
     }
 
     public ResponseEntity<String> delete(QueryController.DeleteRequest req) {

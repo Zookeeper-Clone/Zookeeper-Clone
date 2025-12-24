@@ -36,6 +36,7 @@ public class QueryController {
     public static class WriteRequest extends Request {
         private String value;
         private boolean isEphemeral;
+        private boolean isUpdate; // true for update, false for create
 
         public String getValue() {
             return value;
@@ -43,6 +44,10 @@ public class QueryController {
 
         public boolean getIsEphemeral() {
             return isEphemeral;
+        }
+
+        public boolean getIsUpdate() {
+            return isUpdate;
         }
     }
 
