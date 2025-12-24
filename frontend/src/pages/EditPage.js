@@ -18,6 +18,11 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 
 export default function EditPage() {
@@ -25,6 +30,11 @@ export default function EditPage() {
   const [directoryInput, setDirectoryInput] = useState("");
   const [valueInput, setValueInput] = useState("");
   const [isEphemeral, setIsEphemeral] = useState(false);
+  const [operationType, setOperationType] = useState("create"); // "create" or "update"
+
+  // Error dialog state
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Load from localStorage
   const [historyData, setHistoryData] = useState(
@@ -110,6 +120,7 @@ export default function EditPage() {
   const [newOpValue, setNewOpValue] = useState("");
   const [newOpType, setNewOpType] = useState("write");
   const [newOpIsEphemeral, setNewOpIsEphemeral] = useState(false);
+  const [newOpOperationType, setNewOpOperationType] = useState("create"); // "create" or "update"
 
   const addCannedOperation = () => {
     if (!newOpKey.trim()) return;
@@ -126,6 +137,7 @@ export default function EditPage() {
       value: newOpValue,
       type: newOpType,
       isEphemeral: newOpIsEphemeral,
+      operationType: newOpOperationType, // "create" or "update"
     };
 
     setCannedOperations([...cannedOperations, newOp]);
@@ -135,6 +147,7 @@ export default function EditPage() {
     setNewOpValue("");
     setNewOpType("write");
     setNewOpIsEphemeral(false);
+    setNewOpOperationType("create");
     setShowAddOp(false);
   };
 
@@ -148,13 +161,15 @@ export default function EditPage() {
     key,
     directory,
     value,
-    isEphemeral
+    isEphemeral,
+    operationType = "create"
   ) => {
     const timestamp = new Date().toISOString();
     const payload = { key, directory, value };
 
     if (commandType === "write") {
       payload.isEphemeral = isEphemeral;
+      payload.isUpdate = operationType === "update";
     }
 
     const endpoint =
@@ -162,28 +177,86 @@ export default function EditPage() {
         ? "http://localhost:8080/query/write"
         : "http://localhost:8080/query/delete";
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      credentials: "include",
-    });
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
 
-    pushHistory({
-      key,
-      directory: directory || "-",
-      value: value || "-",
-      type: commandType,
-      timestamp: formatTimestamp(timestamp),
-      status: response.ok ? "Success" : "Failed",
-      isEphemeral: commandType === "write" ? isEphemeral : undefined,
-    });
+      if (!response.ok) {
+        let errorMsg = `Request failed with status ${response.status}`;
 
-    updateFrequency(key);
+        try {
+          // Get response as text first
+          const responseText = await response.text();
+
+          if (responseText) {
+            // Try to parse it as JSON
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMsg = errorData.message || errorData.error || responseText;
+            } catch {
+              // If it's not JSON, use the text directly
+              errorMsg = responseText;
+            }
+          }
+        } catch (error) {
+          console.error("Error reading response:", error);
+          // If all else fails, use the default error message
+        }
+
+        setErrorMessage(errorMsg);
+        setErrorDialogOpen(true);
+
+        pushHistory({
+          key,
+          directory: directory || "-",
+          value: value || "-",
+          type: commandType,
+          timestamp: formatTimestamp(timestamp),
+          status: "Failed",
+          isEphemeral: commandType === "write" ? isEphemeral : undefined,
+        });
+      } else {
+        pushHistory({
+          key,
+          directory: directory || "-",
+          value: value || "-",
+          type: commandType,
+          timestamp: formatTimestamp(timestamp),
+          status: "Success",
+          isEphemeral: commandType === "write" ? isEphemeral : undefined,
+        });
+      }
+
+      updateFrequency(key);
+    } catch (error) {
+      setErrorMessage(`Network error: ${error.message}`);
+      setErrorDialogOpen(true);
+
+      pushHistory({
+        key,
+        directory: directory || "-",
+        value: value || "-",
+        type: commandType,
+        timestamp: formatTimestamp(timestamp),
+        status: "Failed",
+        isEphemeral: commandType === "write" ? isEphemeral : undefined,
+      });
+    }
   };
 
   const handleWrite = () => {
-    sendCommand("write", keyInput, directoryInput, valueInput, isEphemeral);
+    sendCommand(
+      "write",
+      keyInput,
+      directoryInput,
+      valueInput,
+      isEphemeral,
+      operationType
+    );
   };
 
   const handleDelete = () => {
@@ -191,7 +264,14 @@ export default function EditPage() {
   };
 
   const handleExecute = (op) => {
-    sendCommand(op.type, op.key, op.directory, op.value, op.isEphemeral);
+    sendCommand(
+      op.type,
+      op.key,
+      op.directory,
+      op.value,
+      op.isEphemeral,
+      op.operationType || "create"
+    );
   };
 
   return (
@@ -223,6 +303,20 @@ export default function EditPage() {
               fullWidth
               sx={{ mb: 2 }}
             />
+
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="operation-type-label">Operation Type</InputLabel>
+              <Select
+                labelId="operation-type-label"
+                value={operationType}
+                label="Operation Type"
+                onChange={(e) => setOperationType(e.target.value)}
+                sx={{ textAlign: "left" }}
+              >
+                <MenuItem value="create">Create</MenuItem>
+                <MenuItem value="update">Update</MenuItem>
+              </Select>
+            </FormControl>
 
             <Box
               sx={{
@@ -326,6 +420,24 @@ export default function EditPage() {
                 </Select>
               </FormControl>
 
+              {newOpType === "write" && (
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="op-operation-type-label">
+                    Operation Type
+                  </InputLabel>
+                  <Select
+                    labelId="op-operation-type-label"
+                    value={newOpOperationType}
+                    label="Operation Type"
+                    onChange={(e) => setNewOpOperationType(e.target.value)}
+                    sx={{ textAlign: "left" }}
+                  >
+                    <MenuItem value="create">Create</MenuItem>
+                    <MenuItem value="update">Update</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+
               <Button variant="contained" onClick={addCannedOperation}>
                 Save
               </Button>
@@ -350,6 +462,7 @@ export default function EditPage() {
                   <TableCell>Directory</TableCell>
                   <TableCell>Value</TableCell>
                   <TableCell>Type</TableCell>
+                  <TableCell>Create/Update</TableCell>
                   <TableCell>Ephemeral</TableCell>
                   <TableCell>Action</TableCell>
                 </TableRow>
@@ -363,6 +476,9 @@ export default function EditPage() {
                     <TableCell>{op.directory}</TableCell>
                     <TableCell>{op.value}</TableCell>
                     <TableCell>{op.type}</TableCell>
+                    <TableCell>
+                      {op.type === "write" ? op.operationType || "create" : "-"}
+                    </TableCell>
                     <TableCell>
                       {op.type === "write"
                         ? op.isEphemeral
@@ -471,6 +587,19 @@ export default function EditPage() {
           </TableContainer>
         </Grid>
       </Grid>
+
+      {/* Error Dialog */}
+      <Dialog open={errorDialogOpen} onClose={() => setErrorDialogOpen(false)}>
+        <DialogTitle>Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{errorMessage}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setErrorDialogOpen(false)} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

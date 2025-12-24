@@ -44,8 +44,8 @@ public class AuthControllerTest {
         when(authService.register(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("SESSION_TOKEN", "token123"))
                 .andExpect(content().string("Registered successfully"));
@@ -59,8 +59,8 @@ public class AuthControllerTest {
         when(authService.register(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Email exists"));
 
@@ -73,8 +73,8 @@ public class AuthControllerTest {
         when(authService.login(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("SESSION_TOKEN", "token456"))
                 .andExpect(content().string("Logged in successfully"));
@@ -88,8 +88,8 @@ public class AuthControllerTest {
         when(authService.login(anyString(), anyString())).thenReturn(result);
 
         mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\",\"password\":\"Password123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Invalid credentials"));
 
@@ -99,7 +99,7 @@ public class AuthControllerTest {
     @Test
     void testGetToken() throws Exception {
         mockMvc.perform(get("/auth/me")
-                        .cookie(new Cookie("SESSION_TOKEN", "token789")))
+                .cookie(new Cookie("SESSION_TOKEN", "token789")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("token789"));
     }
@@ -109,5 +109,48 @@ public class AuthControllerTest {
         mockMvc.perform(get("/auth/google/login"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/oauth2/authorization/google"));
+    }
+
+    @Test
+    void testLogoutSuccess() throws Exception {
+        AuthResult result = new AuthResult(true, "Logged out successfully", null);
+        when(authService.logout()).thenReturn(result);
+
+        mockMvc.perform(post("/auth/logout")
+                .cookie(new Cookie("SESSION_TOKEN", "token123")))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge("SESSION_TOKEN", 0))
+                .andExpect(content().string("Logged out successfully"));
+
+        verify(authService).logout();
+        verify(zookeeperService).setToken(null);
+    }
+
+    @Test
+    void testLogoutWithoutToken() throws Exception {
+        AuthResult result = new AuthResult(true, "Logged out successfully", null);
+        when(authService.logout()).thenReturn(result);
+
+        mockMvc.perform(post("/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge("SESSION_TOKEN", 0))
+                .andExpect(content().string("Logged out successfully"));
+
+        verify(authService).logout();
+        verify(zookeeperService).setToken(null);
+    }
+
+    @Test
+    void testLogoutFailure() throws Exception {
+        AuthResult result = new AuthResult(false, "No active session to logout", null);
+        when(authService.logout()).thenReturn(result);
+
+        mockMvc.perform(post("/auth/logout")
+                .cookie(new Cookie("SESSION_TOKEN", "invalid_token")))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("No active session to logout"));
+
+        verify(authService).logout();
+        verify(zookeeperService).setToken(null);
     }
 }

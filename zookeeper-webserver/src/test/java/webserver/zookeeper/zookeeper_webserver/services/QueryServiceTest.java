@@ -73,7 +73,7 @@ class QueryServiceTest {
     }
 
     @Test
-    void testWriteSuccess() {
+    void testWriteCreate() {
         QueryController.WriteRequest request = new QueryController.WriteRequest() {
             @Override
             public String getKey() {
@@ -89,15 +89,121 @@ class QueryServiceTest {
             public String getDirectory() {
                 return null;
             }
+
+            @Override
+            public boolean getIsUpdate() {
+                return false; // Create operation
+            }
         };
 
-        when(zookeeperClient.write("key", "val", false))
+        when(zookeeperClient.create("key", "val", false))
                 .thenReturn(ZookeeperClient.QueryResult.success("ok"));
 
         ResponseEntity<String> response = queryService.write(request);
 
         assertEquals("200 OK", response.getStatusCode().toString());
-        verify(zookeeperClient).write("key", "val", false);
+        verify(zookeeperClient).create("key", "val", false);
+    }
+
+    @Test
+    void testWriteUpdate() {
+        QueryController.WriteRequest request = new QueryController.WriteRequest() {
+            @Override
+            public String getKey() {
+                return "existingKey";
+            }
+
+            @Override
+            public String getValue() {
+                return "newVal";
+            }
+
+            @Override
+            public String getDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean getIsUpdate() {
+                return true;
+            }
+        };
+
+        when(zookeeperClient.update("existingKey", "newVal"))
+                .thenReturn(ZookeeperClient.QueryResult.success("updated"));
+
+        ResponseEntity<String> response = queryService.write(request);
+
+        assertEquals("200 OK", response.getStatusCode().toString());
+        verify(zookeeperClient).update("existingKey", "newVal");
+    }
+
+    @Test
+    void testWriteCreateFailure() {
+        QueryController.WriteRequest request = new QueryController.WriteRequest() {
+            @Override
+            public String getKey() {
+                return "key";
+            }
+
+            @Override
+            public String getValue() {
+                return "val";
+            }
+
+            @Override
+            public String getDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean getIsUpdate() {
+                return false;
+            }
+        };
+
+        when(zookeeperClient.create("key", "val", false))
+                .thenReturn(ZookeeperClient.QueryResult.failure("Key already exists"));
+
+        ResponseEntity<String> response = queryService.write(request);
+
+        assertEquals("400 BAD_REQUEST", response.getStatusCode().toString());
+        assertEquals("Key already exists", response.getBody());
+        verify(zookeeperClient).create("key", "val", false);
+    }
+
+    @Test
+    void testWriteUpdateFailure() {
+        QueryController.WriteRequest request = new QueryController.WriteRequest() {
+            @Override
+            public String getKey() {
+                return "nonExistentKey";
+            }
+
+            @Override
+            public String getValue() {
+                return "newVal";
+            }
+
+            @Override
+            public String getDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean getIsUpdate() {
+                return true;
+            }
+        };
+
+        when(zookeeperClient.update("nonExistentKey", "newVal"))
+                .thenReturn(ZookeeperClient.QueryResult.failure("Key not found"));
+
+        ResponseEntity<String> response = queryService.write(request);
+
+        assertEquals("400 BAD_REQUEST", response.getStatusCode().toString());
+        assertEquals("Key not found", response.getBody());
+        verify(zookeeperClient).update("nonExistentKey", "newVal");
     }
 
     @Test
