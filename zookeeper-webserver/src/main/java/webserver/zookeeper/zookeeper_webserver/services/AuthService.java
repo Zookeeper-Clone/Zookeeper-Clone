@@ -35,7 +35,6 @@ public class AuthService {
         return new AuthResult(
                 result.isSuccess(),
                 result.getMessage(),
-                result.getSessionToken().orElse(null)
-        );
+                result.getSessionToken().orElse(null));
     }
 }

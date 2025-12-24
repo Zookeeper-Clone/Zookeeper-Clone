@@ -139,6 +139,74 @@ class QueryServiceTest {
     }
 
     @Test
+    void testWriteCreateFailure() {
+        QueryController.WriteRequest request = new QueryController.WriteRequest() {
+            @Override
+            public String getKey() {
+                return "key";
+            }
+
+            @Override
+            public String getValue() {
+                return "val";
+            }
+
+            @Override
+            public String getDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean getIsUpdate() {
+                return false;
+            }
+        };
+
+        when(zookeeperClient.create("key", "val", false))
+                .thenReturn(ZookeeperClient.QueryResult.failure("Key already exists"));
+
+        ResponseEntity<String> response = queryService.write(request);
+
+        assertEquals("400 BAD_REQUEST", response.getStatusCode().toString());
+        assertEquals("Key already exists", response.getBody());
+        verify(zookeeperClient).create("key", "val", false);
+    }
+
+    @Test
+    void testWriteUpdateFailure() {
+        QueryController.WriteRequest request = new QueryController.WriteRequest() {
+            @Override
+            public String getKey() {
+                return "nonExistentKey";
+            }
+
+            @Override
+            public String getValue() {
+                return "newVal";
+            }
+
+            @Override
+            public String getDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean getIsUpdate() {
+                return true;
+            }
+        };
+
+        when(zookeeperClient.update("nonExistentKey", "newVal"))
+                .thenReturn(ZookeeperClient.QueryResult.failure("Key not found"));
+
+        ResponseEntity<String> response = queryService.write(request);
+
+        assertEquals("400 BAD_REQUEST", response.getStatusCode().toString());
+        assertEquals("Key not found", response.getBody());
+        verify(zookeeperClient).update("nonExistentKey", "newVal");
+    }
+
+    @Test
     void testDeleteFailure() {
         QueryController.DeleteRequest request = new QueryController.DeleteRequest() {
             @Override
