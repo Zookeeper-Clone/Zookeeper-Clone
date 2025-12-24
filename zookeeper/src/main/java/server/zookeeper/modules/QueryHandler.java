@@ -1,8 +1,6 @@
 package server.zookeeper.modules;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Objects;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.protocol.Message;
@@ -10,8 +8,6 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.zookeeper.DB.DataBase;
-import server.zookeeper.proto.auth.AuthOperationType;
-import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;

@@ -24,6 +24,8 @@ public class IntegrationTest {
                 .setGroupId(GROUP_ID)
                 .build();
         client = new ZookeeperClient(raftClient);
+        client.register("test@user.com", "user12345");
+        client.login("test@user.com", "user12345");
     }
 
     @AfterAll

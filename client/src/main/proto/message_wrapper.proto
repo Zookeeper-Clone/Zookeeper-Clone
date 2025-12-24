@@ -16,6 +16,8 @@ enum MessageType {
 
   // Authentication operations (login, register, etc.)
   AUTH = 2;
+
+  PERMISSIONS = 3;
 }
 
 // Wrapper message to route different message types
@@ -27,6 +29,8 @@ message MessageWrapper {
   // For QUERY: serialized Query message
   // For AUTH: serialized AuthRequest message
   bytes payload = 2;
+
+  string session_token = 3;
 }
 
 // Generic response wrapper

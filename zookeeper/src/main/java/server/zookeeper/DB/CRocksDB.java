@@ -7,6 +7,7 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Checkpoint;
+import org.rocksdb.RocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,8 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 
@@ -158,6 +161,25 @@ public class CRocksDB implements DataBase, Closeable {
             String keyString = new String(key, StandardCharsets.UTF_8);
             throw new IllegalArgumentException(String.format("Error while deleting key %s", keyString), e);
         }
+    }
+
+    @Override
+    public List<Map.Entry<byte[], byte[]>> getAllEntries(String cFamilyName) {
+        List<Map.Entry<byte[], byte[]>> entries = new ArrayList<>();
+        try {
+            ColumnFamilyHandle cFamilyHandle = getColumnFamilyHandle(cFamilyName);
+            try (RocksIterator iterator = db.newIterator(cFamilyHandle)) {
+                for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+                    byte[] key = iterator.key();
+                    byte[] value = iterator.value();
+                    entries.add(Map.entry(key, value));
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Error while iterating over column family: {}", cFamilyName, e);
+            throw new RuntimeException("Error while iterating over column family: " + cFamilyName, e);
+        }
+        return entries;
     }
 
     @Override
