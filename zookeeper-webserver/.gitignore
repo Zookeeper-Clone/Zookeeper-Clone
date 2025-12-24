@@ -33,3 +33,8 @@ build/
 .vscode/
 
 .env
+
+
+### Huthaifa ###
+build.sh
+.sdkmanrc

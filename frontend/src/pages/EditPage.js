@@ -1,17 +1,30 @@
 import React, { useState, useEffect } from "react";
 import {
-  Box, Grid, TextField, Button, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Typography,
+  Box,
+  Grid,
+  TextField,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Typography,
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 
 export default function EditPage() {
   const [keyInput, setKeyInput] = useState("");
   const [directoryInput, setDirectoryInput] = useState("");
   const [valueInput, setValueInput] = useState("");
+  const [isEphemeral, setIsEphemeral] = useState(false);
 
   // Load from localStorage
   const [historyData, setHistoryData] = useState(
@@ -35,7 +48,7 @@ export default function EditPage() {
   };
 
   const deleteCannedOperation = (id) => {
-    const updated = cannedOperations.filter(op => op.id !== id);
+    const updated = cannedOperations.filter((op) => op.id !== id);
     setCannedOperations(updated);
   };
 
@@ -49,7 +62,10 @@ export default function EditPage() {
   }, [frequencyData]);
 
   useEffect(() => {
-    localStorage.setItem("writeCannedOperations", JSON.stringify(cannedOperations));
+    localStorage.setItem(
+      "writeCannedOperations",
+      JSON.stringify(cannedOperations)
+    );
   }, [cannedOperations]);
 
   const formatTimestamp = (isoString) => {
@@ -93,6 +109,7 @@ export default function EditPage() {
   const [newOpDir, setNewOpDir] = useState("");
   const [newOpValue, setNewOpValue] = useState("");
   const [newOpType, setNewOpType] = useState("write");
+  const [newOpIsEphemeral, setNewOpIsEphemeral] = useState(false);
 
   const addCannedOperation = () => {
     if (!newOpKey.trim()) return;
@@ -100,7 +117,7 @@ export default function EditPage() {
     const nextId =
       cannedOperations.length === 0
         ? 1
-        : Math.max(...cannedOperations.map(op => op.id)) + 1;
+        : Math.max(...cannedOperations.map((op) => op.id)) + 1;
 
     const newOp = {
       id: nextId,
@@ -108,6 +125,7 @@ export default function EditPage() {
       directory: newOpDir,
       value: newOpValue,
       type: newOpType,
+      isEphemeral: newOpIsEphemeral,
     };
 
     setCannedOperations([...cannedOperations, newOp]);
@@ -116,6 +134,7 @@ export default function EditPage() {
     setNewOpDir("");
     setNewOpValue("");
     setNewOpType("write");
+    setNewOpIsEphemeral(false);
     setShowAddOp(false);
   };
 
@@ -124,9 +143,19 @@ export default function EditPage() {
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 5);
 
-  const sendCommand = async (commandType, key, directory, value) => {
+  const sendCommand = async (
+    commandType,
+    key,
+    directory,
+    value,
+    isEphemeral
+  ) => {
     const timestamp = new Date().toISOString();
     const payload = { key, directory, value };
+
+    if (commandType === "write") {
+      payload.isEphemeral = isEphemeral;
+    }
 
     const endpoint =
       commandType === "write"
@@ -137,7 +166,7 @@ export default function EditPage() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-      credentials: "include"
+      credentials: "include",
     });
 
     pushHistory({
@@ -147,13 +176,14 @@ export default function EditPage() {
       type: commandType,
       timestamp: formatTimestamp(timestamp),
       status: response.ok ? "Success" : "Failed",
+      isEphemeral: commandType === "write" ? isEphemeral : undefined,
     });
 
     updateFrequency(key);
   };
 
   const handleWrite = () => {
-    sendCommand("write", keyInput, directoryInput, valueInput);
+    sendCommand("write", keyInput, directoryInput, valueInput, isEphemeral);
   };
 
   const handleDelete = () => {
@@ -161,7 +191,7 @@ export default function EditPage() {
   };
 
   const handleExecute = (op) => {
-    sendCommand(op.type, op.key, op.directory, op.value);
+    sendCommand(op.type, op.key, op.directory, op.value, op.isEphemeral);
   };
 
   return (
@@ -169,7 +199,7 @@ export default function EditPage() {
       <Grid container spacing={4}>
         {/* Left Column */}
         <Grid item xs={12} md={6} sx={{ width: "50%" }}>
-          <Box sx={{ mb: 3, }}>
+          <Box sx={{ mb: 3 }}>
             <TextField
               label="Key"
               value={keyInput}
@@ -194,13 +224,41 @@ export default function EditPage() {
               sx={{ mb: 2 }}
             />
 
-            <Button variant="contained" sx={{ mr: 2 }} onClick={handleWrite}>
-              Write
-            </Button>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Box>
+                <Button
+                  variant="contained"
+                  sx={{ mr: 2 }}
+                  onClick={handleWrite}
+                >
+                  Write
+                </Button>
 
-            <Button variant="contained" color="error" onClick={handleDelete}>
-              Delete
-            </Button>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleDelete}
+                >
+                  Delete
+                </Button>
+              </Box>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isEphemeral}
+                    onChange={(e) => setIsEphemeral(e.target.checked)}
+                  />
+                }
+                label="Ephemeral"
+              />
+            </Box>
           </Box>
 
           {/* Add Operation */}
@@ -212,7 +270,9 @@ export default function EditPage() {
           </Box>
 
           {showAddOp && (
-            <Box sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 2 }}>
+            <Box
+              sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 2 }}
+            >
               <Typography variant="subtitle1" sx={{ mb: 1 }}>
                 New Operation
               </Typography>
@@ -241,6 +301,17 @@ export default function EditPage() {
                 sx={{ mb: 2 }}
               />
 
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={newOpIsEphemeral}
+                    onChange={(e) => setNewOpIsEphemeral(e.target.checked)}
+                  />
+                }
+                label="Ephemeral"
+                sx={{ mb: 2, display: "block" }}
+              />
+
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel id="op-type-label">Type</InputLabel>
                 <Select
@@ -248,7 +319,7 @@ export default function EditPage() {
                   value={newOpType}
                   label="Type"
                   onChange={(e) => setNewOpType(e.target.value)}
-                  sx={{textAlign: "left"}}
+                  sx={{ textAlign: "left" }}
                 >
                   <MenuItem value="write">Write</MenuItem>
                   <MenuItem value="delete">Delete</MenuItem>
@@ -259,7 +330,11 @@ export default function EditPage() {
                 Save
               </Button>
 
-              <Button variant="text" sx={{ ml: 2 }} onClick={() => setShowAddOp(false)}>
+              <Button
+                variant="text"
+                sx={{ ml: 2 }}
+                onClick={() => setShowAddOp(false)}
+              >
                 Cancel
               </Button>
             </Box>
@@ -275,6 +350,7 @@ export default function EditPage() {
                   <TableCell>Directory</TableCell>
                   <TableCell>Value</TableCell>
                   <TableCell>Type</TableCell>
+                  <TableCell>Ephemeral</TableCell>
                   <TableCell>Action</TableCell>
                 </TableRow>
               </TableHead>
@@ -287,6 +363,13 @@ export default function EditPage() {
                     <TableCell>{op.directory}</TableCell>
                     <TableCell>{op.value}</TableCell>
                     <TableCell>{op.type}</TableCell>
+                    <TableCell>
+                      {op.type === "write"
+                        ? op.isEphemeral
+                          ? "Yes"
+                          : "No"
+                        : "-"}
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant="outlined"
@@ -307,7 +390,6 @@ export default function EditPage() {
                   </TableRow>
                 ))}
               </TableBody>
-
             </Table>
           </TableContainer>
         </Grid>
@@ -330,6 +412,7 @@ export default function EditPage() {
                   <TableCell>Value</TableCell>
                   <TableCell>Directory</TableCell>
                   <TableCell>Type</TableCell>
+                  <TableCell>Ephemeral</TableCell>
                   <TableCell>Timestamp</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
@@ -342,12 +425,18 @@ export default function EditPage() {
                     <TableCell>{row.value}</TableCell>
                     <TableCell>{row.directory}</TableCell>
                     <TableCell>{row.type}</TableCell>
+                    <TableCell>
+                      {row.type === "write"
+                        ? row.isEphemeral
+                          ? "Yes"
+                          : "No"
+                        : "-"}
+                    </TableCell>
                     <TableCell>{row.timestamp}</TableCell>
                     <TableCell>{row.status}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
-
             </Table>
           </TableContainer>
 
@@ -378,7 +467,6 @@ export default function EditPage() {
                   </TableRow>
                 ))}
               </TableBody>
-
             </Table>
           </TableContainer>
         </Grid>
