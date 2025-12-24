@@ -23,7 +23,7 @@ public class IntegrationTest {
                 .setPeers(IDS, PORTS)
                 .setGroupId(GROUP_ID)
                 .build();
-        client = new ZookeeperClient(raftClient);
+        client = new ZookeeperClient(raftClient, event -> {});
         client.register("test@user.com", "user12345");
         client.login("test@user.com", "user12345");
     }

@@ -12,7 +12,7 @@ public class Client {
                                     .setPeers(ids, ports)
                                     .setGroupId(groupId)
                                     .build();
-        ZookeeperClient client = new ZookeeperClient(raftClient);
+        ZookeeperClient client = new ZookeeperClient(raftClient, event -> {});
         ZookeeperClient.AuthenticationResult registerResult = client.register("admin@admin.com","adminpass22");
         System.out.println(registerResult.getMessage());
         System.out.println(client.write("nasr","value1").getValue());
