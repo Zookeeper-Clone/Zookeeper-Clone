@@ -146,9 +146,9 @@
     </dependency>
   </dependencies>
   <properties>
+    <ratis.version>3.1.1</ratis.version>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.source>17</maven.compiler.source>
     <protobuf.version>3.25.0</protobuf.version>
-    <ratis.version>3.1.1</ratis.version>
   </properties>
 </project>
