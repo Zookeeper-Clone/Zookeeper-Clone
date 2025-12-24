@@ -18,29 +18,25 @@ public class QueryService {
 
     public ResponseEntity<String> read(QueryController.ReadRequest req) {
         return handleQueryResult(
-                req.getDirectory() == null ?
-                        zookeeperClient.read(req.getKey()) :
-                        zookeeperClient.read(req.getKey(), req.getDirectory())
-        );
+                req.getDirectory() == null ? zookeeperClient.read(req.getKey())
+                        : zookeeperClient.read(req.getKey(), req.getDirectory()));
     }
 
     public ResponseEntity<String> write(QueryController.WriteRequest req) {
         return handleQueryResult(
-                req.getDirectory() == null ?
-                        zookeeperClient.write(req.getKey(), req.getValue()) :
-                        zookeeperClient.write(req.getKey(), req.getValue(), req.getDirectory())
-        );
+                req.getDirectory() == null ? zookeeperClient.write(req.getKey(), req.getValue(), req.getIsEphemeral())
+                        : zookeeperClient.write(req.getKey(), req.getValue(), req.getDirectory(),
+                                req.getIsEphemeral()));
     }
 
     public ResponseEntity<String> delete(QueryController.DeleteRequest req) {
         return handleQueryResult(
-                req.getDirectory() == null ?
-                        zookeeperClient.delete(req.getKey()) :
-                        zookeeperClient.delete(req.getKey(), req.getDirectory())
-        );
+                req.getDirectory() == null ? zookeeperClient.delete(req.getKey())
+                        : zookeeperClient.delete(req.getKey(), req.getDirectory()));
     }
 
     private static ResponseEntity<String> handleQueryResult(ZookeeperClient.QueryResult result) {
-        return result.isSuccess() ? ResponseEntity.ok(result.getValue()) : ResponseEntity.badRequest().body(result.getMessage());
+        return result.isSuccess() ? ResponseEntity.ok(result.getValue())
+                : ResponseEntity.badRequest().body(result.getMessage());
     }
 }

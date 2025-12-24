@@ -2,34 +2,36 @@ syntax = "proto3";
 
 package zookeeper.query;
 
-option java_package = "server.zookeeper.proto.query";
-option java_outer_classname = "QueryProto";
 option java_multiple_files = true;
+option java_outer_classname = "QueryProto";
+option java_package = "server.zookeeper.proto.query";
 
-message UserQuery{
-    QueryType query_type = 1;
+message UserQuery {
+  QueryType query_type = 1;
 
-    string key = 2;
+  string key = 2;
 
-    string value = 3;
+  string value = 3;
 
-    string directory = 4;
+  string directory = 4;
 
-    string session_token = 5;
+  string session_token = 5;
+
+  bool is_ephemeral = 6;
 }
-message QueryResponse{
-    bool success = 1;
+message QueryResponse {
+  bool success = 1;
 
-    string error_message = 2;
+  string error_message = 2;
 
-    string value = 3;
+  string value = 3;
 }
-enum QueryType{
-    GET = 0;
+enum QueryType {
+  GET = 0;
 
-    WRITE = 1;
+  WRITE = 1;
 
-    DELETE = 3;
+  DELETE = 3;
 
-    QUERY_TYPE_UNSPECIFIED = 4;
+  QUERY_TYPE_UNSPECIFIED = 4;
 }

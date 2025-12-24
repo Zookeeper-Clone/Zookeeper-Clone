@@ -120,13 +120,14 @@ public class TestStore {
 
     @Test
     void testBuildQueryRequest() throws Exception {
-        UserQuery query = RequestFactory.buildUserQuery(QueryType.GET, "key1", "val1", "dir1", Optional.of("userTok"));
+        UserQuery query = RequestFactory.buildUserQuery(QueryType.GET, "key1", "val1", "dir1", false,  Optional.of("userTok"));
 
         assertEquals(QueryType.GET, query.getQueryType());
         assertEquals("key1", query.getKey());
         assertEquals("val1", query.getValue());
         assertEquals("dir1", query.getDirectory());
         assertEquals("userTok", query.getSessionToken());
+        assertFalse(query.getIsEphemeral());
     }
 
     @Test

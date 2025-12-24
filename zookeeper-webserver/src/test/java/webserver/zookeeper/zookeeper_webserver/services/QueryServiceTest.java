@@ -29,9 +29,14 @@ class QueryServiceTest {
     void testReadSuccess() {
         QueryController.ReadRequest request = new QueryController.ReadRequest() {
             @Override
-            public String getKey() { return "testKey"; }
+            public String getKey() {
+                return "testKey";
+            }
+
             @Override
-            public String getDirectory() { return null; }
+            public String getDirectory() {
+                return null;
+            }
         };
 
         when(zookeeperClient.read("testKey"))
@@ -47,9 +52,14 @@ class QueryServiceTest {
     void testReadFailure() {
         QueryController.ReadRequest request = new QueryController.ReadRequest() {
             @Override
-            public String getKey() { return "badKey"; }
+            public String getKey() {
+                return "badKey";
+            }
+
             @Override
-            public String getDirectory() { return null; }
+            public String getDirectory() {
+                return null;
+            }
         };
 
         when(zookeeperClient.read("badKey"))
@@ -66,29 +76,42 @@ class QueryServiceTest {
     void testWriteSuccess() {
         QueryController.WriteRequest request = new QueryController.WriteRequest() {
             @Override
-            public String getKey() { return "key"; }
+            public String getKey() {
+                return "key";
+            }
+
             @Override
-            public String getValue() { return "val"; }
+            public String getValue() {
+                return "val";
+            }
+
             @Override
-            public String getDirectory() { return null; }
+            public String getDirectory() {
+                return null;
+            }
         };
 
-        when(zookeeperClient.write("key", "val"))
+        when(zookeeperClient.write("key", "val", false))
                 .thenReturn(ZookeeperClient.QueryResult.success("ok"));
 
         ResponseEntity<String> response = queryService.write(request);
 
         assertEquals("200 OK", response.getStatusCode().toString());
-        verify(zookeeperClient).write("key", "val");
+        verify(zookeeperClient).write("key", "val", false);
     }
 
     @Test
     void testDeleteFailure() {
         QueryController.DeleteRequest request = new QueryController.DeleteRequest() {
             @Override
-            public String getKey() { return "key"; }
+            public String getKey() {
+                return "key";
+            }
+
             @Override
-            public String getDirectory() { return null; }
+            public String getDirectory() {
+                return null;
+            }
         };
 
         when(zookeeperClient.delete("key"))
