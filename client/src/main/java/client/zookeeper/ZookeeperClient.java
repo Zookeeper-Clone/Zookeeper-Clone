@@ -203,32 +203,32 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult read(String key) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", "", sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", "", false, sessionManager.getToken());
         return sendQueryRequest(q, true);
     }
 
     public QueryResult read(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, false, sessionManager.getToken());
         return sendQueryRequest(q, true);
     }
 
-    public QueryResult write(String key, String value) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, "", sessionManager.getToken());
+    public QueryResult write(String key, String value, boolean isEphemeral) {
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, "", isEphemeral, sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
-    public QueryResult write(String key, String value, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, directory, sessionManager.getToken());
+    public QueryResult write(String key, String value, String directory, boolean isEphemeral) {
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, directory, isEphemeral, sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
     public QueryResult delete(String key) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", "", sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", "", false, sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
     public QueryResult delete(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, false, sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 

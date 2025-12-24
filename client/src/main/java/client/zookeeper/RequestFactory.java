@@ -44,12 +44,13 @@ public class RequestFactory {
                 .build();
     }
 
-    public static UserQuery buildUserQuery(QueryType type, String key, String value, String directory, Optional<String> token) {
+    public static UserQuery buildUserQuery(QueryType type, String key, String value, String directory, boolean isEphemeral, Optional<String> token) {
         UserQuery.Builder builder = UserQuery.newBuilder()
                 .setQueryType(type)
                 .setKey(key)
                 .setValue(value)
-                .setDirectory(directory);
+                .setDirectory(directory)
+                .setIsEphemeral(isEphemeral);
         token.ifPresent(builder::setSessionToken);
 
         return builder.build();

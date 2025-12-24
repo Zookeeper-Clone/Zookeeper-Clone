@@ -38,7 +38,7 @@ public class IntegrationTest {
     @Test
     @Order(1)
     public void testBasicWriteAndRead() {
-        String writeResponse = client.write("user1", "John Doe").getValue();
+        String writeResponse = client.write("user1", "John Doe", false).getValue();
         assertEquals(entrySucess, writeResponse, "Write operation should succeed");
 
         String readResponse = client.read("user1").getValue();
@@ -48,9 +48,9 @@ public class IntegrationTest {
     @Test
     @Order(2)
     public void testMultipleWrites() {
-        String response1 = client.write("user2", "Alice").getValue();
-        String response2 = client.write("user3", "Bob").getValue();
-        String response3 = client.write("user4", "Charlie").getValue();
+        String response1 = client.write("user2", "Alice", false).getValue();
+        String response2 = client.write("user3", "Bob", false).getValue();
+        String response3 = client.write("user4", "Charlie", false).getValue();
 
         assertEquals(entrySucess, response1);
         assertEquals(entrySucess, response2);
@@ -64,10 +64,10 @@ public class IntegrationTest {
     @Test
     @Order(3)
     public void testUpdateExistingKey() {
-        client.write("config", "version1");
+        client.write("config", "version1", false);
         assertEquals("version1", client.read("config").getValue());
 
-        String updateResponse = client.write("config", "version2").getValue();
+        String updateResponse = client.write("config", "version2", false).getValue();
         assertEquals(entrySucess, updateResponse);
 
         assertEquals("version2", client.read("config").getValue());
@@ -76,9 +76,9 @@ public class IntegrationTest {
     @Test
     @Order(4)
     public void testWriteAndReadWithDirectory() {
-        ZookeeperClient.QueryResult response1 = client.write("employee1", "Engineering", "department");
-        ZookeeperClient.QueryResult response2 = client.write("employee1", "$80000", "salary");
-        ZookeeperClient.QueryResult response3 = client.write("employee1", "Senior Developer", "position");
+        ZookeeperClient.QueryResult response1 = client.write("employee1", "Engineering", "department", false);
+        ZookeeperClient.QueryResult response2 = client.write("employee1", "$80000", "salary", false);
+        ZookeeperClient.QueryResult response3 = client.write("employee1", "Senior Developer", "position", false);
 
         assertEquals(entrySucess, response1.getValue());
         assertEquals(entrySucess, response2.getValue());
@@ -92,10 +92,10 @@ public class IntegrationTest {
     @Test
     @Order(5)
     public void testMultipleEntriesWithDirectories() {
-        client.write("product1", "Laptop", "name");
-        client.write("product1", "$1200", "price");
-        client.write("product2", "Mouse", "name");
-        client.write("product2", "$25", "price");
+        client.write("product1", "Laptop", "name", false);
+        client.write("product1", "$1200", "price", false);
+        client.write("product2", "Mouse", "name", false);
+        client.write("product2", "$25", "price", false);
 
         assertEquals("Laptop", client.read("product1", "name").getValue());
         assertEquals("$1200", client.read("product1", "price").getValue());
@@ -106,7 +106,7 @@ public class IntegrationTest {
     @Test
     @Order(6)
     public void testDeleteBasicEntry() {
-        client.write("temp", "temporary data");
+        client.write("temp", "temporary data", false);
         assertEquals("temporary data", client.read("temp").getValue());
 
         boolean deleteResult = client.delete("temp").isSuccess();
@@ -118,7 +118,7 @@ public class IntegrationTest {
     @Test
     @Order(7)
     public void testDeleteEntryWithDirectory() {
-        client.write("session1", "active", "status");
+        client.write("session1", "active", "status", false);
         assertEquals("active", client.read("session1", "status").getValue());
 
         boolean deleteResult = client.delete("session1", "status").isSuccess();
@@ -144,15 +144,15 @@ public class IntegrationTest {
     @Test
     @Order(10)
     public void testComplexScenario() {
-        client.write("app_config", "production", "environment");
-        client.write("app_config", "true", "debug_mode");
-        client.write("app_config", "INFO", "log_level");
+        client.write("app_config", "production", "environment", false);
+        client.write("app_config", "true", "debug_mode", false);
+        client.write("app_config", "INFO", "log_level", false);
 
         assertEquals("production", client.read("app_config", "environment").getValue());
         assertEquals("true", client.read("app_config", "debug_mode").getValue());
         assertEquals("INFO", client.read("app_config", "log_level").getValue());
 
-        client.write("app_config", "false", "debug_mode");
+        client.write("app_config", "false", "debug_mode", false);
         assertEquals("false", client.read("app_config", "debug_mode").getValue());
 
         client.delete("app_config", "log_level");
@@ -165,10 +165,10 @@ public class IntegrationTest {
     @Test
     @Order(11)
     public void testSpecialCharactersInValues() {
-        client.write("message", "Hello, World! @#$%^&*()");
+        client.write("message", "Hello, World! @#$%^&*()", false);
         assertEquals("Hello, World! @#$%^&*()", client.read("message").getValue());
 
-        client.write("json_like", "{\"key\":\"value\"}");
+        client.write("json_like", "{\"key\":\"value\"}", false);
         assertEquals("{\"key\":\"value\"}", client.read("json_like").getValue());
     }
 
@@ -181,7 +181,7 @@ public class IntegrationTest {
         }
 
         String value = largeValue.toString();
-        client.write("large_data", value);
+        client.write("large_data", value, false);
         assertEquals(value, client.read("large_data").getValue());
     }
 
@@ -190,13 +190,13 @@ public class IntegrationTest {
     public void testSequentialOperations() {
         String key = "counter";
 
-        client.write(key, "0");
+        client.write(key, "0", false);
         assertEquals("0", client.read(key).getValue());
-        client.write(key, "1");
+        client.write(key, "1", false);
         assertEquals("1", client.read(key).getValue());
-        client.write(key, "2");
+        client.write(key, "2", false);
         assertEquals("2", client.read(key).getValue());
-        client.write(key, "3");
+        client.write(key, "3", false);
         assertEquals("3", client.read(key).getValue());
     }
 
@@ -205,11 +205,11 @@ public class IntegrationTest {
     public void testMixedBasicAndDirectoryOperations() {
         String key = "mixed_key";
 
-        client.write(key, "base_value");
+        client.write(key, "base_value", false);
         assertEquals("base_value", client.read(key).getValue());
 
-        client.write(key, "dir_value1", "dir1");
-        client.write(key, "dir_value2", "dir2");
+        client.write(key, "dir_value1", "dir1", false);
+        client.write(key, "dir_value2", "dir2", false);
 
         assertEquals("base_value", client.read(key).getValue());
         assertEquals("dir_value1", client.read(key, "dir1").getValue());
@@ -222,13 +222,13 @@ public class IntegrationTest {
     public void testDeleteAndRewrite() {
         String key = "rewritable";
 
-        client.write(key, "first_value");
+        client.write(key, "first_value", false);
         assertEquals("first_value", client.read(key).getValue());
 
         client.delete(key);
         assertEquals(notFound, client.read(key).getValue());
 
-        client.write(key, "second_value");
+        client.write(key, "second_value", false);
         assertEquals("second_value", client.read(key).getValue());
     }
 
@@ -237,11 +237,11 @@ public class IntegrationTest {
     public void testMultipleDirectoriesPerKey() {
         String key = "user_profile";
 
-        client.write(key, "Csed", "firstname");
-        client.write(key, "Doe", "lastname");
-        client.write(key, "csed@zookeeper.com", "email");
-        client.write(key, "30", "age");
-        client.write(key, "New York", "city");
+        client.write(key, "Csed", "firstname", false);
+        client.write(key, "Doe", "lastname", false);
+        client.write(key, "csed@zookeeper.com", "email", false);
+        client.write(key, "30", "age", false);
+        client.write(key, "New York", "city", false);
 
         assertEquals("Csed", client.read(key, "firstname").getValue());
         assertEquals("Doe", client.read(key, "lastname").getValue());
