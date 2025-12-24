@@ -87,7 +87,7 @@ public class SessionManager {
     public void addEphemeralEntry(String sessionToken, String key, String directory) {
         Optional<Session> sessionOpt = sessionRepository.getSession(sessionToken);
         if (sessionOpt.isEmpty()) {
-            LOG.error("Cannot add ephemeral entry. Session with token {} not found", sessionToken);
+            LOG.error("Cannot add ephemeral entry. Session with token {} not found", sessionToken.hashCode());
             return;
         }
 
@@ -102,7 +102,7 @@ public class SessionManager {
                 .build();
 
         sessionRepository.saveSession(updatedSession);
-        LOG.info("Added ephemeral entry {}/{} to session {}", directory, key, sessionToken);
+        LOG.info("Added ephemeral entry {}/{} to session {}", directory, key, sessionToken.hashCode());
     }
 
     public void invalidateSession(String token) {
@@ -126,6 +126,7 @@ public class SessionManager {
         } else {
             db.delete(keyBytes, dir);
         }
+
 
         LOG.info("Deleted ephemeral entry {}/{} for session {}", dir, key, token);
     }
