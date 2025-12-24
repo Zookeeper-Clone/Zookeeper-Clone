@@ -1,24 +1,30 @@
 import * as React from 'react';
 import PropTypes from 'prop-types';
-import Box from '@mui/material/Box';
+
 import { createTheme } from '@mui/material/styles';
 import { AppProvider } from '@toolpad/core/AppProvider';
 import { DashboardLayout } from '@toolpad/core/DashboardLayout';
 import { DemoProvider, useDemoRouter } from '@toolpad/core/internal';
+import { Box, Button } from '@mui/material';
+
+import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import EditIcon from '@mui/icons-material/Edit';
 import BarChartIcon from '@mui/icons-material/BarChart';
-import LogoutIcon from '@mui/icons-material/Logout';
-import { Button } from '@mui/material';
+import ShieldIcon from '@mui/icons-material/Shield';
+
 import ReadPage from './ReadPage';
 import WritePage from './EditPage';
 import MetricsPage from './MetricsPage';
+import PermissionsPage from './PermissionsPage';
 
 const NAVIGATION = [
   { kind: 'header', title: 'Main items' },
   { segment: 'read', title: 'Read', icon: <DashboardIcon /> },
   { segment: 'write', title: 'Write', icon: <EditIcon /> },
   { segment: 'metrics', title: 'Metrics', icon: <BarChartIcon /> },
+  { segment: 'permissions', title: 'Permissions', icon: <ShieldIcon /> },
+
 ];
 
 const demoTheme = createTheme({
@@ -35,6 +41,8 @@ function DemoPageContent({ pathname }) {
       return <WritePage />;
     case '/metrics':
       return <MetricsPage />;
+    case '/permissions':
+      return <PermissionsPage />;
     default:
       return <ReadPage />;
   }
