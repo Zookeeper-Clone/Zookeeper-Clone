@@ -13,6 +13,7 @@ import server.zookeeper.util.EmailUtils;
 import server.zookeeper.util.PasswordHasher;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import static java.util.Objects.requireNonNull;
 
@@ -57,7 +58,7 @@ public class AuthHandler implements MessageHandler {
     }
 
     @Override
-    public Message handle(byte[] payload, boolean isMutation) {
+    public CompletableFuture<Message> handle(byte[] payload, boolean isMutation) {
         LOG.debug("Handling authentication request, isMutation: {}", isMutation);
 
         try {
@@ -66,14 +67,18 @@ public class AuthHandler implements MessageHandler {
                     request.getOperation(), EmailUtils.maskEmail(request.getEmail()));
 
             AuthResponse response = routeRequest(request);
-            return Message.valueOf(ByteString.copyFrom(response.toByteArray()));
+
+            // Wrap the result in a completed future
+            return CompletableFuture.completedFuture(
+                    Message.valueOf(ByteString.copyFrom(response.toByteArray()))
+            );
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse AuthRequest from payload", e);
-            return createErrorResponse("Invalid request format: " + e.getMessage());
+            return CompletableFuture.completedFuture(createErrorResponse("Invalid request format: " + e.getMessage()));
 
         } catch (Exception e) {
             LOG.error("Unexpected error handling auth request", e);
-            return createErrorResponse("Internal server error: " + e.getMessage());
+            return CompletableFuture.completedFuture(createErrorResponse("Internal server error: " + e.getMessage()));
         }
     }
 
