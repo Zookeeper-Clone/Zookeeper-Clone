@@ -6,12 +6,15 @@ import org.junit.jupiter.api.*;
 import client.zookeeper.RaftClientBuilder;
 import client.zookeeper.ZookeeperClient;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class IntegrationTest {
 
     private static RaftClient raftClient;
     private static ZookeeperClient client;
-    private static final String entrySucess = "OK ENTRY ADDED";
+    private static final String entrySuccess = "OK ENTRY ADDED";
     private static final String notFound = "__NOT_FOUND__";
     private static final String[] IDS = {"n1", "n2", "n3", "n4", "n5"};
     private static final int[] PORTS = {6001, 6002, 6003, 6004, 6005};
@@ -36,25 +39,23 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(1)
     public void testBasicWriteAndRead() {
         String writeResponse = client.write("user1", "John Doe", false).getValue();
-        assertEquals(entrySucess, writeResponse, "Write operation should succeed");
+        assertEquals(entrySuccess, writeResponse, "Write operation should succeed");
 
         String readResponse = client.read("user1").getValue();
         assertEquals("John Doe", readResponse, "Read should return the written value");
     }
 
     @Test
-    @Order(2)
     public void testMultipleWrites() {
         String response1 = client.write("user2", "Alice", false).getValue();
         String response2 = client.write("user3", "Bob", false).getValue();
         String response3 = client.write("user4", "Charlie", false).getValue();
 
-        assertEquals(entrySucess, response1);
-        assertEquals(entrySucess, response2);
-        assertEquals(entrySucess, response3);
+        assertEquals(entrySuccess, response1);
+        assertEquals(entrySuccess, response2);
+        assertEquals(entrySuccess, response3);
 
         assertEquals("Alice", client.read("user2").getValue());
         assertEquals("Bob", client.read("user3").getValue());
@@ -62,27 +63,25 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(3)
     public void testUpdateExistingKey() {
         client.write("config", "version1", false);
         assertEquals("version1", client.read("config").getValue());
 
         String updateResponse = client.write("config", "version2", false).getValue();
-        assertEquals(entrySucess, updateResponse);
+        assertEquals(entrySuccess, updateResponse);
 
         assertEquals("version2", client.read("config").getValue());
     }
 
     @Test
-    @Order(4)
     public void testWriteAndReadWithDirectory() {
         ZookeeperClient.QueryResult response1 = client.write("employee1", "Engineering", "department", false);
         ZookeeperClient.QueryResult response2 = client.write("employee1", "$80000", "salary", false);
         ZookeeperClient.QueryResult response3 = client.write("employee1", "Senior Developer", "position", false);
 
-        assertEquals(entrySucess, response1.getValue());
-        assertEquals(entrySucess, response2.getValue());
-        assertEquals(entrySucess, response3.getValue());
+        assertEquals(entrySuccess, response1.getValue());
+        assertEquals(entrySuccess, response2.getValue());
+        assertEquals(entrySuccess, response3.getValue());
 
         assertEquals("Engineering", client.read("employee1", "department").getValue());
         assertEquals("$80000", client.read("employee1", "salary").getValue());
@@ -90,7 +89,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(5)
     public void testMultipleEntriesWithDirectories() {
         client.write("product1", "Laptop", "name", false);
         client.write("product1", "$1200", "price", false);
@@ -104,7 +102,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(6)
     public void testDeleteBasicEntry() {
         client.write("temp", "temporary data", false);
         assertEquals("temporary data", client.read("temp").getValue());
@@ -116,7 +113,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(7)
     public void testDeleteEntryWithDirectory() {
         client.write("session1", "active", "status", false);
         assertEquals("active", client.read("session1", "status").getValue());
@@ -128,21 +124,18 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(8)
     public void testReadNonExistentKey() {
         String result = client.read("nonexistent_key").getValue();
         assertEquals(notFound, result, "Non-existent key should return __NOT_FOUND__");
     }
 
     @Test
-    @Order(9)
     public void testReadNonExistentDirectory() {
         String result = client.read("some_key", "nonexistent_directory").getValue();
         assertEquals(notFound, result, "Non-existent directory should return __NOT_FOUND__");
     }
 
     @Test
-    @Order(10)
     public void testComplexScenario() {
         client.write("app_config", "production", "environment", false);
         client.write("app_config", "true", "debug_mode", false);
@@ -163,7 +156,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(11)
     public void testSpecialCharactersInValues() {
         client.write("message", "Hello, World! @#$%^&*()", false);
         assertEquals("Hello, World! @#$%^&*()", client.read("message").getValue());
@@ -173,7 +165,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(12)
     public void testLargeValueStorage() {
         StringBuilder largeValue = new StringBuilder();
         for (int i = 0; i < 100; i++) {
@@ -186,7 +177,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(13)
     public void testSequentialOperations() {
         String key = "counter";
 
@@ -201,7 +191,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(14)
     public void testMixedBasicAndDirectoryOperations() {
         String key = "mixed_key";
 
@@ -218,7 +207,6 @@ public class IntegrationTest {
 
 
     @Test
-    @Order(15)
     public void testDeleteAndRewrite() {
         String key = "rewritable";
 
@@ -233,7 +221,6 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(16)
     public void testMultipleDirectoriesPerKey() {
         String key = "user_profile";
 
@@ -248,6 +235,29 @@ public class IntegrationTest {
         assertEquals("csed@zookeeper.com", client.read(key, "email").getValue());
         assertEquals("30", client.read(key, "age").getValue());
         assertEquals("New York", client.read(key, "city").getValue());
+    }
+
+    @Test
+    public void testEphemeralEntryExpiration() throws Exception {
+        //! Create a separate client for ephemeral session
+        RaftClient ephemeralRaftClient = new RaftClientBuilder()
+                .setPeers(IDS, PORTS)
+                .setGroupId(GROUP_ID)
+                .build();
+
+        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient)) {
+            ephemeralClient.register("ephemeral@user.com", "pass1234");
+            ephemeralClient.login("ephemeral@user.com", "pass1234");
+            String key = "ephemeralKey";
+            String value = "temporary";
+
+            ephemeralClient.write(key, value, true);
+            assertEquals(value, ephemeralClient.read(key).getValue());
+
+            ephemeralClient.logout();
+            String readValue = client.read(key).getValue();
+            assertEquals(notFound, readValue, "Ephemeral entry should be removed after session timeout");
+        }
     }
 
 }

@@ -96,14 +96,11 @@ public class QueryHandler implements MessageHandler {
             String key = query.getKey();
             String val = query.getValue();
 
-            if (directory == null)
-                keyValStore.put(key.getBytes(), val.getBytes());
-            else
-                keyValStore.put(key.getBytes(), val.getBytes(), directory);
+            if (directory == null) keyValStore.put(key.getBytes(), val.getBytes());
+            else keyValStore.put(key.getBytes(), val.getBytes(), directory);
 
-            if (query.getIsEphemeral()) {
-                sessionManager.addEphemeralEntry(query.getSessionToken(), key, directory);
-            }
+            if (query.getIsEphemeral()) sessionManager.addEphemeralEntry(query.getSessionToken(), key, directory);
+
             response.setSuccess(true).setValue("OK ENTRY ADDED");
         }
     }
