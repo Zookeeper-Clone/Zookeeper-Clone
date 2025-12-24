@@ -40,8 +40,11 @@ public class QueryHandler implements MessageHandler {
                 case GET:
                     get(directory, query, response);
                     break;
-                case WRITE:
-                    write(isMutation, response, query, directory);
+                case CREATE:
+                    create(isMutation, response, query, directory);
+                    break;
+                case UPDATE:
+                    update(isMutation, response, query, directory);
                     break;
                 case DELETE:
                     delete(isMutation, response, query, directory);
@@ -89,20 +92,52 @@ public class QueryHandler implements MessageHandler {
                 : keyValStore.get(key.getBytes(), dir);
     }
 
-    private void write(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+    private void create(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
-            response.setSuccess(false).setErrorMessage("WRITE operation requires mutation flag");
-        } else {
-            String key = query.getKey();
-            String val = query.getValue();
-
-            if (directory == null) keyValStore.put(key.getBytes(), val.getBytes());
-            else keyValStore.put(key.getBytes(), val.getBytes(), directory);
-
-            if (query.getIsEphemeral()) sessionManager.addEphemeralEntry(query.getSessionToken(), key, directory);
-
-            response.setSuccess(true).setValue("OK ENTRY ADDED");
+            response.setSuccess(false).setErrorMessage("CREATE operation requires mutation flag");
+            return;
         }
+
+        String key = query.getKey();
+        String dir = (directory == null || directory.isEmpty()) ? null : directory;
+        byte[] existing = getExisting(dir, key);
+
+        if (existing != null) {
+            response.setSuccess(false)
+                    .setErrorMessage("Key already exists")
+                    .setValue(new String(existing, StandardCharsets.UTF_8));
+            return;
+        }
+
+        if (dir == null) keyValStore.put(key.getBytes(), query.getValue().getBytes());
+        else keyValStore.put(key.getBytes(), query.getValue().getBytes(), dir);
+
+        if (query.getIsEphemeral()) sessionManager.addEphemeralEntry(query.getSessionToken(), key, dir);
+
+        response.setSuccess(true).setValue("OK ENTRY CREATED");
+    }
+
+    private void update(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+        if (!isMutation) {
+            response.setSuccess(false).setErrorMessage("UPDATE operation requires mutation flag");
+            return;
+        }
+
+        String key = query.getKey();
+        String dir = (directory == null || directory.isEmpty()) ? null : directory;
+        byte[] existing = getExisting(dir, key);
+
+        if (existing == null) {
+            response.setSuccess(false)
+                    .setErrorMessage("Key does not exist")
+                    .setValue("__NOT_FOUND__");
+            return;
+        }
+
+        if (dir == null) keyValStore.put(key.getBytes(), query.getValue().getBytes());
+        else keyValStore.put(key.getBytes(), query.getValue().getBytes(), dir);
+
+        response.setSuccess(true).setValue("OK ENTRY UPDATED");
     }
 
     private void get(String directory, UserQuery query, QueryResponse.Builder response) {

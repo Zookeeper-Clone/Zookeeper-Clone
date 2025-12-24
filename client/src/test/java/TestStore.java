@@ -5,14 +5,10 @@ import client.zookeeper.ZookeeperClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
-
 import server.zookeeper.proto.auth.AuthOperationType;
 import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Optional;
 
@@ -38,8 +34,7 @@ public class TestStore {
 
     @Test
     void testAuthenticationResultSuccessWithToken() {
-        ZookeeperClient.AuthenticationResult result =
-                ZookeeperClient.AuthenticationResult.success("ok", "token123");
+        ZookeeperClient.AuthenticationResult result = ZookeeperClient.AuthenticationResult.success("ok", "token123");
 
         assertTrue(result.isSuccess());
         assertEquals("ok", result.getMessage());
@@ -48,8 +43,7 @@ public class TestStore {
 
     @Test
     void testAuthenticationResultSuccessWithoutToken() {
-        ZookeeperClient.AuthenticationResult result =
-                ZookeeperClient.AuthenticationResult.success("ok");
+        ZookeeperClient.AuthenticationResult result = ZookeeperClient.AuthenticationResult.success("ok");
 
         assertTrue(result.isSuccess());
         assertEquals("ok", result.getMessage());
@@ -58,8 +52,7 @@ public class TestStore {
 
     @Test
     void testAuthenticationResultFailure() {
-        ZookeeperClient.AuthenticationResult result =
-                ZookeeperClient.AuthenticationResult.failure("fail");
+        ZookeeperClient.AuthenticationResult result = ZookeeperClient.AuthenticationResult.failure("fail");
 
         assertFalse(result.isSuccess());
         assertEquals("fail", result.getMessage());
@@ -70,8 +63,7 @@ public class TestStore {
 
     @Test
     void testQueryResultSuccessWithValue() {
-        ZookeeperClient.QueryResult result =
-                ZookeeperClient.QueryResult.success("ok", "val");
+        ZookeeperClient.QueryResult result = ZookeeperClient.QueryResult.success("ok", "val");
 
         assertTrue(result.isSuccess());
         assertEquals("ok", result.getMessage());
@@ -80,8 +72,7 @@ public class TestStore {
 
     @Test
     void testQueryResultSuccessWithoutValue() {
-        ZookeeperClient.QueryResult result =
-                ZookeeperClient.QueryResult.success("ok");
+        ZookeeperClient.QueryResult result = ZookeeperClient.QueryResult.success("ok");
 
         assertTrue(result.isSuccess());
         assertEquals("ok", result.getMessage());
@@ -90,8 +81,7 @@ public class TestStore {
 
     @Test
     void testQueryResultFailure() {
-        ZookeeperClient.QueryResult result =
-                ZookeeperClient.QueryResult.failure("fail");
+        ZookeeperClient.QueryResult result = ZookeeperClient.QueryResult.failure("fail");
 
         assertFalse(result.isSuccess());
         assertEquals("fail", result.getMessage());
@@ -102,8 +92,7 @@ public class TestStore {
 
     @Test
     void testAuthenticationResultToString() {
-        ZookeeperClient.AuthenticationResult result =
-                ZookeeperClient.AuthenticationResult.success("ok", "tok");
+        ZookeeperClient.AuthenticationResult result = ZookeeperClient.AuthenticationResult.success("ok", "tok");
         String str = result.toString();
         assertTrue(str.contains("success=true"));
         assertTrue(str.contains("hasToken=true"));
@@ -111,8 +100,7 @@ public class TestStore {
 
     @Test
     void testQueryResultToString() {
-        ZookeeperClient.QueryResult result =
-                ZookeeperClient.QueryResult.success("ok", "val");
+        ZookeeperClient.QueryResult result = ZookeeperClient.QueryResult.success("ok", "val");
         String str = result.toString();
         assertTrue(str.contains("success=true"));
         assertTrue(str.contains("value=val"));
@@ -120,7 +108,8 @@ public class TestStore {
 
     @Test
     void testBuildQueryRequest() throws Exception {
-        UserQuery query = RequestFactory.buildUserQuery(QueryType.GET, "key1", "val1", "dir1", false,  Optional.of("userTok"));
+        UserQuery query = RequestFactory.buildUserQuery(QueryType.GET, "key1", "val1", "dir1", false,
+                Optional.of("userTok"));
 
         assertEquals(QueryType.GET, query.getQueryType());
         assertEquals("key1", query.getKey());
@@ -132,7 +121,8 @@ public class TestStore {
 
     @Test
     void testBuildAuthRequestWithoutSessionToken() throws Exception {
-        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.REGISTER, "a@b.com", "pass", Optional.empty());
+        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.REGISTER, "a@b.com", "pass",
+                Optional.empty());
 
         assertEquals(AuthOperationType.REGISTER, req.getOperation());
         assertEquals("a@b.com", req.getEmail());
@@ -142,7 +132,8 @@ public class TestStore {
 
     @Test
     void testBuildAuthRequestWithSessionToken() throws Exception {
-        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.LOGIN, "b@c.com", "pass2", Optional.of("tok123"));
+        AuthRequest req = RequestFactory.buildAuthRequest(AuthOperationType.LOGIN, "b@c.com", "pass2",
+                Optional.of("tok123"));
 
         assertEquals(AuthOperationType.LOGIN, req.getOperation());
         assertEquals("b@c.com", req.getEmail());
@@ -152,7 +143,8 @@ public class TestStore {
 
     @Test
     void testBuildOAuthRequestWithoutSessionToken() throws Exception {
-        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.LOGIN_OAUTH, "o@auth.com", "tokenX", Optional.empty());
+        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.LOGIN_OAUTH, "o@auth.com", "tokenX",
+                Optional.empty());
 
         assertEquals(AuthOperationType.LOGIN_OAUTH, req.getOperation());
         assertEquals("o@auth.com", req.getEmail());
@@ -162,7 +154,8 @@ public class TestStore {
 
     @Test
     void testBuildOAuthRequestWithSessionToken() throws Exception {
-        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.REGISTER_OAUTH, "x@y.com", "oauthTok", Optional.of("sessTok"));
+        AuthRequest req = RequestFactory.buildOAuthRequest(AuthOperationType.REGISTER_OAUTH, "x@y.com", "oauthTok",
+                Optional.of("sessTok"));
 
         assertEquals(AuthOperationType.REGISTER_OAUTH, req.getOperation());
         assertEquals("x@y.com", req.getEmail());

@@ -29,7 +29,9 @@ message QueryResponse {
 enum QueryType {
   GET = 0;
 
-  WRITE = 1;
+  CREATE = 1;
+
+  UPDATE = 2;
 
   DELETE = 3;
 

@@ -87,14 +87,20 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testCanHandleValidWrite() {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+    public void testCanHandleValidCreate() {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
         assertTrue(handler.canHandle(query.toByteArray()));
     }
 
     @Test
     public void testCanHandleValidDelete() {
         UserQuery query = createQuery(QueryType.DELETE, "k", "v", null);
+        assertTrue(handler.canHandle(query.toByteArray()));
+    }
+
+    @Test
+    public void testCanHandleValidUpdate() {
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
         assertTrue(handler.canHandle(query.toByteArray()));
     }
 
@@ -201,29 +207,29 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteRequiresMutationFlag() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+    public void testCreateRequiresMutationFlag() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
         Message msg = handler.handle(query.toByteArray(), false);
         QueryResponse res = parseResponse(msg);
 
         assertFalse(res.getSuccess());
-        assertEquals("WRITE operation requires mutation flag", res.getErrorMessage());
+        assertEquals("CREATE operation requires mutation flag", res.getErrorMessage());
     }
 
     @Test
-    public void testWriteNoDirectory() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "");
+    public void testCreateNoDirectory() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
         Message msg = handler.handle(query.toByteArray(), true);
         QueryResponse res = parseResponse(msg);
 
         assertTrue(res.getSuccess());
-        assertEquals("OK ENTRY ADDED", res.getValue());
+        assertEquals("OK ENTRY CREATED", res.getValue());
         verify(mockDb).put("k".getBytes(), "v".getBytes());
     }
 
     @Test
-    public void testWriteWithDirectory() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "dir");
+    public void testCreateWithDirectory() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "dir");
         Message msg = handler.handle(query.toByteArray(), true);
 
         assertTrue(parseResponse(msg).getSuccess());
@@ -231,8 +237,8 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteEmptyDirectoryTreatsAsNull() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "");
+    public void testCreateEmptyDirectoryTreatsAsNull() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
         handler.handle(query.toByteArray(), true);
 
         verify(mockDb).put("k".getBytes(), "v".getBytes());
@@ -240,8 +246,8 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteEmptyKey() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "", "v", null);
+    public void testCreateEmptyKey() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "", "v", null);
         Message msg = handler.handle(query.toByteArray(), true);
 
         assertTrue(parseResponse(msg).getSuccess());
@@ -249,12 +255,75 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteEmptyValue() throws InvalidProtocolBufferException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "", null);
+    public void testCreateEmptyValue() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "", null);
         Message msg = handler.handle(query.toByteArray(), true);
 
         assertTrue(parseResponse(msg).getSuccess());
         verify(mockDb).put(eq("k".getBytes()), eq(new byte[0]));
+    }
+
+    @Test
+    public void testCreateFailsWhenKeyExists() throws InvalidProtocolBufferException {
+        when(mockDb.get("k".getBytes())).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
+        Message msg = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(msg);
+
+        assertFalse(res.getSuccess());
+        assertEquals("Key already exists", res.getErrorMessage());
+        assertEquals("old", res.getValue());
+        verify(mockDb, never()).put(any(), any());
+    }
+
+    @Test
+    public void testUpdateRequiresMutationFlag() throws InvalidProtocolBufferException {
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
+        Message msg = handler.handle(query.toByteArray(), false);
+        QueryResponse res = parseResponse(msg);
+
+        assertFalse(res.getSuccess());
+        assertEquals("UPDATE operation requires mutation flag", res.getErrorMessage());
+    }
+
+    @Test
+    public void testUpdateFailsWhenKeyMissing() throws InvalidProtocolBufferException {
+        when(mockDb.get("k".getBytes())).thenReturn(null);
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", "");
+        Message msg = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(msg);
+
+        assertFalse(res.getSuccess());
+        assertEquals("Key does not exist", res.getErrorMessage());
+        assertEquals("__NOT_FOUND__", res.getValue());
+        verify(mockDb, never()).put(any(), any());
+    }
+
+    @Test
+    public void testUpdateNoDirectory() throws InvalidProtocolBufferException {
+        when(mockDb.get("k".getBytes())).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "new", "");
+        Message msg = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(msg);
+
+        assertTrue(res.getSuccess());
+        assertEquals("OK ENTRY UPDATED", res.getValue());
+        verify(mockDb).put("k".getBytes(), "new".getBytes());
+    }
+
+    @Test
+    public void testUpdateWithDirectory() throws InvalidProtocolBufferException {
+        when(mockDb.get("k".getBytes(), "dir")).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "new", "dir");
+        Message msg = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(msg);
+
+        assertTrue(res.getSuccess());
+        verify(mockDb).put("k".getBytes(), "new".getBytes(), "dir");
     }
 
     @Test
@@ -357,15 +426,28 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testDbExceptionOnWrite() throws InvalidProtocolBufferException {
+    public void testDbExceptionOnCreate() throws InvalidProtocolBufferException {
         doThrow(new RuntimeException("Write Error")).when(mockDb).put(any(), any());
 
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
         Message msg = handler.handle(query.toByteArray(), true);
         QueryResponse res = parseResponse(msg);
 
         assertFalse(res.getSuccess());
         assertTrue(res.getErrorMessage().contains("Write Error"));
+    }
+
+    @Test
+    public void testDbExceptionOnUpdate() throws InvalidProtocolBufferException {
+        when(mockDb.get(any())).thenReturn("old".getBytes());
+        doThrow(new RuntimeException("Update Error")).when(mockDb).put(any(), any());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
+        Message msg = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(msg);
+
+        assertFalse(res.getSuccess());
+        assertTrue(res.getErrorMessage().contains("Update Error"));
     }
 
     @Test
@@ -406,9 +488,9 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteUtf8Values() {
+    public void testCreateUtf8Values() {
         String utf8Str = "😊";
-        UserQuery query = createQuery(QueryType.WRITE, "k", utf8Str, null);
+        UserQuery query = createQuery(QueryType.CREATE, "k", utf8Str, null);
         handler.handle(query.toByteArray(), true);
 
         verify(mockDb).put(eq("k".getBytes()), eq(utf8Str.getBytes(StandardCharsets.UTF_8)));
@@ -435,7 +517,7 @@ public class QueryHandlerTest {
         String directory = "temp";
 
         UserQuery query = UserQuery.newBuilder()
-                .setQueryType(QueryType.WRITE)
+        .setQueryType(QueryType.CREATE)
                 .setKey(key)
                 .setValue(value)
                 .setDirectory(directory)

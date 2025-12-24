@@ -31,9 +31,10 @@ public class ZookeeperClient implements AutoCloseable {
     private final RaftClient raftClient;
     private final SessionManager sessionManager;
 
-    public void setSessionToken(String token){
-        sessionManager.startSession(token,this::sendHeartbeat);
+    public void setSessionToken(String token) {
+        sessionManager.startSession(token, this::sendHeartbeat);
     }
+
     public ZookeeperClient(RaftClient raftClient) {
         this.raftClient = raftClient;
         this.sessionManager = new SessionManager();
@@ -44,9 +45,11 @@ public class ZookeeperClient implements AutoCloseable {
                 AuthOperationType.REGISTER, email, password, sessionManager.getToken());
         return sendAuthRequest(authRequest, false);
     }
-    public RaftClient getRaftClient(){
+
+    public RaftClient getRaftClient() {
         return this.raftClient;
     }
+
     public AuthenticationResult login(String email, String password) {
         AuthRequest authRequest = RequestFactory.buildAuthRequest(
                 AuthOperationType.LOGIN, email, password, sessionManager.getToken());
@@ -79,12 +82,11 @@ public class ZookeeperClient implements AutoCloseable {
 
     private void sendHeartbeat() {
         Optional<String> token = sessionManager.getToken();
-        if (token.isEmpty()) return;
+        if (token.isEmpty())
+            return;
 
         AuthRequest request = RequestFactory.buildHeartbeatRequest(token.get());
 
-        // Heartbeat is a write operation (updates expiry)
-        // TODO: think more about what type of queries should we use here
         AuthenticationResult result = sendAuthRequest(request, false);
 
         if (!result.isSuccess()) {
@@ -112,6 +114,7 @@ public class ZookeeperClient implements AutoCloseable {
 
     /**
      * Logout and invalidate the current session.
+     * 
      * @return AuthenticationResult indicating success or failure
      */
     public AuthenticationResult logout() {
@@ -139,7 +142,8 @@ public class ZookeeperClient implements AutoCloseable {
         return sendRequest(userQyery, MessageType.QUERY, isReadOnly, this::parseQueryResponse);
     }
 
-    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly, Function<ByteString, T> responseParser) {
+    private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly,
+            Function<ByteString, T> responseParser) {
         try {
             MessageWrapper wrapper = MessageWrapper.newBuilder()
                     .setType(type)
@@ -208,17 +212,28 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult read(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, false, sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, false,
+                sessionManager.getToken());
         return sendQueryRequest(q, true);
     }
 
-    public QueryResult write(String key, String value, boolean isEphemeral) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, "", isEphemeral, sessionManager.getToken());
+    public QueryResult create(String key, String value, boolean isEphemeral) {
+        return create(key, value, "", isEphemeral);
+    }
+
+    public QueryResult create(String key, String value, String directory, boolean isEphemeral) {
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.CREATE, key, value, directory, isEphemeral,
+                sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
-    public QueryResult write(String key, String value, String directory, boolean isEphemeral) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.WRITE, key, value, directory, isEphemeral, sessionManager.getToken());
+    public QueryResult update(String key, String value) {
+        return update(key, value, "");
+    }
+
+    public QueryResult update(String key, String value, String directory) {
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.UPDATE, key, value, directory, false,
+                sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
@@ -228,7 +243,8 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult delete(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, false, sessionManager.getToken());
+        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, false,
+                sessionManager.getToken());
         return sendQueryRequest(q, false);
     }
 
@@ -242,7 +258,8 @@ public class ZookeeperClient implements AutoCloseable {
         return sendPermissionsRequest(request, true);
     }
 
-    private UserPermissionsRequest getUserPermissionsRequest(String email, RequestType requestType, UserPermissions userPermissions, String token) {
+    private UserPermissionsRequest getUserPermissionsRequest(String email, RequestType requestType,
+            UserPermissions userPermissions, String token) {
         return UserPermissionsRequest.newBuilder()
                 .setRequestType(requestType)
                 .setUserEmail(email == null ? "" : email)
@@ -256,7 +273,7 @@ public class ZookeeperClient implements AutoCloseable {
                 .setIsAdmin(isAdmin)
                 .build();
         UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_IS_ADMIN,
-                userPerm,  sessionManager.getToken().orElseGet(String::new));
+                userPerm, sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
