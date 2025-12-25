@@ -468,7 +468,7 @@ public class ZookeeperClient implements AutoCloseable {
     // TODO : refactor WatchHandler to its own file
     private class WatchHandler {
 
-        public void sendWatchRequest(String key, String directory) {
+        public void sendWatchRequest(String key, String directory, Watcher customWatcher) {
             UserQuery query = RequestFactory.buildUserQuery(
                     QueryType.WATCH, key, "", directory,false, sessionManager.getToken());
             CompletableFuture<RaftClientReply> res = sendAsyncRequest(query, MessageType.QUERY, true);
@@ -484,18 +484,7 @@ public class ZookeeperClient implements AutoCloseable {
                     return;
                 }
 
-                if (!raftClientReply.isSuccess()) {
-                    // Attempt to parse any error payload if present
-                    if (raftClientReply.getMessage() != null) {
-                        WatcherResult watcherResult = parseWatcherResponse(raftClientReply.getMessage().getContent());
-                        LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
-                                key, directory, watcherResult.getErrorMessage());
-                    } else {
-                        LOG.error("Failed to set watch on key: {} in directory: {}. reply.isSuccess==false and no message present",
-                                key, directory);
-                    }
-                    return;
-                }
+                if (handleFailure(key, directory, raftClientReply)) return;
 
                 ByteString content = raftClientReply.getMessage() == null ? null : raftClientReply.getMessage().getContent();
                 WatcherResult watcherResult = parseWatcherResponse(content);
@@ -505,28 +494,29 @@ public class ZookeeperClient implements AutoCloseable {
                 } else {
                     LOG.info("Successfully set watch on key: {} in directory: {}", key, directory);
                     try {
-                        watcher.process(watcherResult.getWatchEvent());
-
-                        WatchEvent event = watcherResult.getWatchEvent();
-                        System.out.println("================================================================");
-                        System.out.println(">>> WATCH NOTIFICATION RECEIVED <<<");
-                        System.out.println("Path        : " + (directory == null ? "" : directory) + "/" + key);
-
-                        if (event != null) {
-                            System.out.println("Event Type  : " + event.getEventType());
-                        } else {
-                            System.out.println("Event Type  : GENERIC_MUTATION");
-                            System.out.println("Status      : Triggered by server-side update.");
-                            System.out.println("Note        : No specific WatchEvent object provided in payload.");
-                        }
-                        System.out.println("Time        : " + java.time.LocalDateTime.now());
-                        System.out.println("================================================================");
-
+                        if (customWatcher != null) customWatcher.process(watcherResult.getWatchEvent());
+                        else watcher.process(watcherResult.getWatchEvent());
                     } catch (Exception e) {
                         LOG.error("Watcher.process threw an exception for key: {} dir: {}", key, directory, e);
                     }
                 }
             });
+        }
+
+        private boolean handleFailure(String key, String directory, RaftClientReply raftClientReply) {
+            if (!raftClientReply.isSuccess()) {
+                // Attempt to parse any error payload if present
+                if (raftClientReply.getMessage() != null) {
+                    WatcherResult watcherResult = parseWatcherResponse(raftClientReply.getMessage().getContent());
+                    LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
+                            key, directory, watcherResult.getErrorMessage());
+                } else {
+                    LOG.error("Failed to set watch on key: {} in directory: {}. reply.isSuccess==false and no message present",
+                            key, directory);
+                }
+                return true;
+            }
+            return false;
         }
 
         public WatcherResult parseWatcherResponse(ByteString responseBytes) {
