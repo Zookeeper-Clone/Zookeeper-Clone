@@ -69,7 +69,6 @@ public class QueryHandler implements MessageHandler {
         }
         LOG.info("SUCCESSFULLY EXECUTED");
         return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));    }
-//    private void setWatch()
     private void delete(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
             response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");
