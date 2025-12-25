@@ -12,6 +12,8 @@ import server.zookeeper.proto.MessageWrapper;
 import server.zookeeper.proto.ResponseWrapper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -34,11 +36,11 @@ public class MessageRouterTest {
 
         when(mockQueryHandler.getHandlerType()).thenReturn("QUERY");
         when(mockQueryHandler.handle(any(), anyBoolean()))
-                .thenReturn(Message.valueOf("QUERY_RESPONSE"));
+                .thenReturn(CompletableFuture.completedFuture(Message.valueOf("QUERY_RESPONSE")));
 
         when(mockAuthHandler.getHandlerType()).thenReturn("AUTH");
         when(mockAuthHandler.handle(any(), anyBoolean()))
-                .thenReturn(Message.valueOf("AUTH_RESPONSE"));
+                .thenReturn(CompletableFuture.completedFuture(Message.valueOf("AUTH_RESPONSE")));
 
         router = new MessageRouter(mockQueryHandler, mockSessionManager);
         router.registerHandler(MessageType.QUERY, mockQueryHandler);
@@ -46,7 +48,7 @@ public class MessageRouterTest {
     }
 
     @Test
-    void testRouteWrappedQueryMessage() {
+    void testRouteWrappedQueryMessage() throws ExecutionException, InterruptedException {
         String token = "valid-token";
         when(mockSessionManager.validateSession(token)).thenReturn(true);
 
@@ -57,7 +59,7 @@ public class MessageRouterTest {
                 .setSessionToken(token)
                 .build();
 
-        Message result = router.route(wrapper.toByteArray(), false);
+        Message result = router.route(wrapper.toByteArray(), false).get();
 
         assertEquals("QUERY_RESPONSE", result.getContent().toStringUtf8());
         verify(mockQueryHandler, times(1)).handle(any(), eq(false));
@@ -65,7 +67,7 @@ public class MessageRouterTest {
     }
 
     @Test
-    void testRouteWrappedAuthMessage() {
+    void testRouteWrappedAuthMessage() throws ExecutionException, InterruptedException {
         // Create wrapped AUTH message
         MessageWrapper wrapper = MessageWrapper.newBuilder()
                 .setType(MessageType.AUTH)
@@ -73,9 +75,9 @@ public class MessageRouterTest {
                 .build();
 
         when(mockAuthHandler.handle(any(), anyBoolean()))
-                .thenReturn(Message.valueOf("AUTH_RESPONSE"));
+                .thenReturn(CompletableFuture.completedFuture(Message.valueOf("AUTH_RESPONSE")));
 
-        Message result = router.route(wrapper.toByteArray(), true);
+        Message result = router.route(wrapper.toByteArray(), true).get();
 
         assertEquals("AUTH_RESPONSE", result.getContent().toStringUtf8());
         verify(mockAuthHandler, times(1)).handle(any(), eq(true));
@@ -86,19 +88,19 @@ public class MessageRouterTest {
     }
 
     @Test
-    void testUnknownMessageTypeReturnsError() throws InvalidProtocolBufferException {
+    void testUnknownMessageTypeReturnsError() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         // Create wrapper with UNSPECIFIED type
         MessageWrapper wrapper = MessageWrapper.newBuilder()
                 .setType(MessageType.UNSPECIFIED)
                 .setPayload(ByteString.copyFromUtf8("DATA"))
                 .build();
 
-        Message result = router.route(wrapper.toByteArray(), false);
+        Message result = router.route(wrapper.toByteArray(), false).get();
         assertFalse(ResponseWrapper.parseFrom(result.getContent().toByteArray()).getSuccess());
     }
 
     @Test
-    void testRouteWrappedQueryMessageUnauthorized() {
+    void testRouteWrappedQueryMessageUnauthorized() throws ExecutionException, InterruptedException {
         String token = "invalid-token";
         // Mock failed validation
         when(mockSessionManager.validateSession(token)).thenReturn(false);
@@ -109,7 +111,7 @@ public class MessageRouterTest {
                 .setSessionToken(token)
                 .build();
 
-        Message result = router.route(wrapper.toByteArray(), false);
+        Message result = router.route(wrapper.toByteArray(), false).get();
 
         // Should return error and NOT call handler
         assertTrue(result.getContent().toStringUtf8().contains("Unauthorized"));

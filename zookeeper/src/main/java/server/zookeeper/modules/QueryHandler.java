@@ -1,6 +1,7 @@
 package server.zookeeper.modules;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.protocol.Message;
@@ -11,38 +12,47 @@ import server.zookeeper.DB.DataBase;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
+import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.util.ReservedDirectories;
 
 public class QueryHandler implements MessageHandler{
     private final DataBase keyValStore;
     private final String HANDLER_TYPE = "QUERY";
     private final Logger LOG = LoggerFactory.getLogger(QueryHandler.class);
+    // TODO : use dependency injection
+    private final WatchManager watchManager = new WatchManager();
     public QueryHandler(DataBase keyValStore) {
         this.keyValStore = keyValStore;
     }
 
     @Override
-    public Message handle(byte[] payload, boolean isMutation){
+    public CompletableFuture<Message> handle(byte[] payload, boolean isMutation){
         QueryResponse.Builder response = QueryResponse.newBuilder();
         try {
             UserQuery query = UserQuery.parseFrom(payload);
+            String key = query.getKey();
             String directory = query.getDirectory().isEmpty() ? null : query.getDirectory();
 
             if (ReservedDirectories.isReserved(directory)) {
                 response.setSuccess(false)
                         .setErrorMessage(ReservedDirectories.getReservedDirectoryError(directory));
-                return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
-            }
+                return CompletableFuture
+                        .completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));            }
             switch (query.getQueryType()){
                 case GET:
                     get(directory, query, response);
                     break;
                 case WRITE:
                     write(isMutation, response, query, directory);
+                    watchManager.triggerNotify(key, directory, query.getValue().getBytes(StandardCharsets.UTF_8), WatchEventType.PUT_EVENT);
                     break;
                 case DELETE:
                     delete(isMutation, response, query, directory);
+                    watchManager.triggerNotify(key, directory, new byte[0], WatchEventType.DELETE_EVENT);
                     break;
+                case WATCH:
+                    LOG.info("Registering watch for key: {} in directory : {}" , key, directory);
+                    return watchManager.addWatch(key, directory);
                 default:
                     response.setSuccess(false).setErrorMessage("Invalid query type");
                     break;
@@ -51,9 +61,8 @@ public class QueryHandler implements MessageHandler{
             response.setSuccess(false).setErrorMessage("Failed to handle query: " + e.getMessage());
         }
         LOG.info("SUCCESSFULLY EXECUTED");
-        return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
-    }
-
+        return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));    }
+//    private void setWatch()
     private void delete(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
             response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");
