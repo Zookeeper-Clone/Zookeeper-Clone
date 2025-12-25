@@ -103,6 +103,7 @@ public class MessageRouter {
 
     private boolean requiresAuthentication(MessageType type) {
         switch (type) {
+            case METRICS:
             case QUERY:
                 return true;
             case AUTH:

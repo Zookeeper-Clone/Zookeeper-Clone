@@ -25,7 +25,8 @@ public class IntegrationTest {
                 .setPeers(IDS, PORTS)
                 .setGroupId(GROUP_ID)
                 .build();
-        client = new ZookeeperClient(raftClient, event -> {});
+        client = new ZookeeperClient(raftClient, event -> {
+        });
         client.register("test@user.com", "user12345");
         client.login("test@user.com", "user12345");
     }
@@ -254,7 +255,8 @@ public class IntegrationTest {
                 .setGroupId(GROUP_ID)
                 .build();
 
-        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {})) {
+        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {
+        })) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
             String key = namespaced("ephemeralKey");
@@ -269,4 +271,25 @@ public class IntegrationTest {
         }
     }
 
+    @Test
+    @Order(Integer.MAX_VALUE)
+    public void testGetMetrics() {
+        ZookeeperClient.MetricsResult metrics = client.getMetrics();
+        if (metrics.isSuccess()) {
+            System.out.println("\n========================================");
+            System.out.println("         SERVER METRICS REPORT          ");
+            System.out.println("========================================");
+            System.out.println("Election Count:              " + metrics.getElectionCount());
+            System.out.println("Timeout Count:               " + metrics.getTimeoutCount());
+            System.out.println("Client Read Requests:        " + metrics.getClientReadRequests());
+            System.out.println("Client Write Requests:       " + metrics.getClientWriteRequests());
+            System.out.println("Pending Requests in Queue:   " + metrics.getNumPendingRequestsInQueue());
+            System.out.println("Failed Client Read Requests: " + metrics.getNumFailedClientReadOnServer());
+            System.out
+                    .println("Append Entry Latency (ms):   " + String.format("%.2f", metrics.getAppendEntryLatency()));
+            System.out.println("========================================\n");
+        } else {
+            System.err.println("Failed to get metrics: " + metrics.getErrorMessage());
+        }
+    }
 }

@@ -19,6 +19,9 @@ enum MessageType {
 
   // User permissions operations
   PERMISSIONS = 3;
+
+  // Metrics operations (server health and statistics)
+  METRICS = 4;
 }
 
 // Wrapper message to route different message types
@@ -30,6 +33,7 @@ message MessageWrapper {
   // For QUERY: serialized Query message
   // For AUTH: serialized AuthRequest message
   // For PERMISSIONS: serialized UserPermissionsRequest message
+  // For METRICS: serialized MetricsRequest message
   bytes payload = 2;
 
   string session_token = 3;

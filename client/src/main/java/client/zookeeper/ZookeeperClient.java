@@ -13,6 +13,8 @@ import server.zookeeper.proto.MessageWrapper;
 import server.zookeeper.proto.auth.AuthOperationType;
 import server.zookeeper.proto.auth.AuthRequest;
 import server.zookeeper.proto.auth.AuthResponse;
+import server.zookeeper.proto.metrics.MetricsProto;
+import server.zookeeper.proto.metrics.MetricsProto.MetricsResponse;
 import server.zookeeper.proto.permissions.RequestType;
 import server.zookeeper.proto.permissions.UserPermissions;
 import server.zookeeper.proto.permissions.UserPermissionsRequest;
@@ -218,15 +220,26 @@ public class ZookeeperClient implements AutoCloseable {
         }
     }
 
-    @Override
-    public void close() throws IOException {
-        // Logout to notify server and invalidate session
-        if (isAuthenticated()) {
-            logout();
+    public MetricsResult getMetrics() {
+        return sendRequest(MetricsProto.MetricsResponse.getDefaultInstance(), MessageType.METRICS, true,
+                this::parseMetricsResponse);
+    }
+
+    private MetricsResult parseMetricsResponse(ByteString responseBytes) {
+        if (responseBytes == null) {
+            return MetricsResult.failure("Invalid server response");
         }
-        sessionManager.close();
-        if (raftClient != null) {
-            raftClient.close();
+        try {
+            MetricsResponse resp = MetricsResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
+            if (!resp.getSuccess()) {
+                return MetricsResult.failure(resp.getErrorMessage());
+            }
+            return new MetricsResult(true, null, resp.getElectionCount(), resp.getTimeoutCount(),
+                    resp.getClientReadRequests(), resp.getClientWriteRequests(), resp.getNumPendingRequestsInQueue(),
+                    resp.getNumFailedClientReadOnServer(), resp.getAppendEntryLatency());
+        } catch (InvalidProtocolBufferException e) {
+            LOG.error("Failed to parse metrics response", e);
+            return MetricsResult.failure("Invalid server response");
         }
     }
 
@@ -342,46 +355,86 @@ public class ZookeeperClient implements AutoCloseable {
             return PermissionsResult.failure("Invalid server response");
         }
     }
-
-    public static class PermissionsResult {
+    public static class MetricsResult {
         private final boolean success;
-        private final String message;
-        private final UserPermissions userPermissions;
+        private final String errorMessage;
+        private final long electionCount;
+        private final long timeoutCount;
+        private final long clientReadRequests;
+        private final long clientWriteRequests;
+        private final long numPendingRequestsInQueue;
+        private final long numFailedClientReadOnServer;
+        private final double appendEntryLatency;
 
-        private PermissionsResult(boolean success, String message, UserPermissions userPermissions) {
+        public MetricsResult(boolean success, String errorMessage, long electionCount, long timeoutCount,
+                long clientReadRequests, long clientWriteRequests, long numPendingRequestsInQueue,
+                long numFailedClientReadOnServer, double appendEntryLatency) {
             this.success = success;
-            this.message = message;
-            this.userPermissions = userPermissions;
+            this.errorMessage = errorMessage;
+            this.electionCount = electionCount;
+            this.timeoutCount = timeoutCount;
+            this.clientReadRequests = clientReadRequests;
+            this.clientWriteRequests = clientWriteRequests;
+            this.numPendingRequestsInQueue = numPendingRequestsInQueue;
+            this.numFailedClientReadOnServer = numFailedClientReadOnServer;
+            this.appendEntryLatency = appendEntryLatency;
         }
 
-        public static PermissionsResult success(String message, UserPermissions perms) {
-            return new PermissionsResult(true, message, perms);
-        }
-
-        public static PermissionsResult success(UserPermissions perms) {
-            return new PermissionsResult(true, null, perms);
-        }
-
-        public static PermissionsResult failure(String message) {
-            return new PermissionsResult(false, message, null);
+        public static MetricsResult failure(String message) {
+            return new MetricsResult(false, message, 0, 0, 0, 0, 0, 0, 0.0);
         }
 
         public boolean isSuccess() {
             return success;
         }
 
-        public String getMessage() {
-            return message;
+        public String getErrorMessage() {
+            return errorMessage;
         }
 
-        public UserPermissions getUserPermissions() {
-            return userPermissions;
+        public long getElectionCount() {
+            return electionCount;
+        }
+
+        public long getTimeoutCount() {
+            return timeoutCount;
+        }
+
+        public long getClientReadRequests() {
+            return clientReadRequests;
+        }
+
+        public long getClientWriteRequests() {
+            return clientWriteRequests;
+        }
+
+        public long getNumPendingRequestsInQueue() {
+            return numPendingRequestsInQueue;
+        }
+
+        public long getNumFailedClientReadOnServer() {
+            return numFailedClientReadOnServer;
+        }
+
+        public double getAppendEntryLatency() {
+            return appendEntryLatency;
         }
 
         @Override
         public String toString() {
-            return String.format("PermissionsResult{success=%s, message='%s', userPermissions=%s}",
-                    success, message, userPermissions);
+            if (!success) {
+                return String.format("MetricsResult{success=false, errorMessage='%s'}", errorMessage);
+            }
+            return "MetricsResult{" +
+                    "success=" + success +
+                    ", electionCount=" + electionCount +
+                    ", timeoutCount=" + timeoutCount +
+                    ", clientReadRequests=" + clientReadRequests +
+                    ", clientWriteRequests=" + clientWriteRequests +
+                    ", numPendingRequestsInQueue=" + numPendingRequestsInQueue +
+                    ", numFailedClientReadOnServer=" + numFailedClientReadOnServer +
+                    ", appendEntryLatency=" + appendEntryLatency +
+                    '}';
         }
     }
 
@@ -598,5 +651,57 @@ public class ZookeeperClient implements AutoCloseable {
         }
     }
 
-}
+    public static class PermissionsResult {
+        private final boolean success;
+        private final String message;
+        private final UserPermissions userPermissions;
 
+        private PermissionsResult(boolean success, String message, UserPermissions userPermissions) {
+            this.success = success;
+            this.message = message;
+            this.userPermissions = userPermissions;
+        }
+
+        public static PermissionsResult success(String message, UserPermissions perms) {
+            return new PermissionsResult(true, message, perms);
+        }
+
+        public static PermissionsResult success(UserPermissions perms) {
+            return new PermissionsResult(true, null, perms);
+        }
+
+        public static PermissionsResult failure(String message) {
+            return new PermissionsResult(false, message, null);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public UserPermissions getUserPermissions() {
+            return userPermissions;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("PermissionsResult{success=%s, message='%s', userPermissions=%s}",
+                    success, message, userPermissions);
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        // Logout to notify server and invalidate session
+        if (isAuthenticated()) {
+            logout();
+        }
+        sessionManager.close();
+        if (raftClient != null) {
+            raftClient.close();
+        }
+    }
+}

@@ -46,6 +46,7 @@ public class KVStateMachine extends BaseStateMachine {
     private final DataBase db;
     private final FileListStateMachineStorage storage = new FileListStateMachineStorage();
     private final SessionCleanupWorker sessionCleanupWorker;
+    private final MetricsHandler metricsHandler;
 
     public KVStateMachine(DataBase keyValStore) {
         try {
@@ -68,10 +69,12 @@ public class KVStateMachine extends BaseStateMachine {
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
             AuthzHandler authzHandler = new AuthzHandler(sessionRepository, authRepository);
+            this.metricsHandler = new MetricsHandler();
 
             messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);
             messageRouter.registerHandler(MessageType.PERMISSIONS, authzHandler);
+            messageRouter.registerHandler(MessageType.METRICS, this.metricsHandler);
             LOG.info("KVStateMachine initialized with MessageRouter");
         } catch (Exception e) {
             LOG.error("Error initialzing KVStateMachine");
@@ -85,6 +88,7 @@ public class KVStateMachine extends BaseStateMachine {
         log.info("initialize method called");
         this.storage.init(raftStorage);
         this.sessionCleanupWorker.setRaftInfo(server, groupId);
+        this.metricsHandler.setRaftServer(server);
         SnapshotInfo snapshot = storage.getLatestSnapshot();
         log.info("snapshot is null ? {} : ", snapshot == null);
 
