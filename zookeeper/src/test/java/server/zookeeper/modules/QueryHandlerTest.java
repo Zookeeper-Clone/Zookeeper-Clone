@@ -24,13 +24,18 @@ import static org.mockito.Mockito.*;
 public class QueryHandlerTest {
 
     private DataBase mockDb;
+    private WatchManager mockWatchManager;
+    private SessionManager mockSessionManager;
     private QueryHandler handler;
     private MockedStatic<ReservedDirectories> reservedMock;
 
     @BeforeEach
     public void setUp() {
         mockDb = mock(DataBase.class);
-        handler = new QueryHandler(mockDb);
+        mockWatchManager = mock(WatchManager.class);
+        mockSessionManager = mock(SessionManager.class);
+        // Assuming QueryHandler constructor accepts all dependencies now
+        handler = new QueryHandler(mockDb, mockWatchManager, mockSessionManager);
         reservedMock = mockStatic(ReservedDirectories.class);
     }
 
@@ -87,8 +92,14 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testCanHandleValidWrite() {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+    public void testCanHandleValidCreate() {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
+        assertTrue(handler.canHandle(query.toByteArray()));
+    }
+
+    @Test
+    public void testCanHandleValidUpdate() {
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
         assertTrue(handler.canHandle(query.toByteArray()));
     }
 
@@ -139,6 +150,8 @@ public class QueryHandlerTest {
         assertFalse(res.getSuccess());
         assertEquals("Invalid query type", res.getErrorMessage());
     }
+
+    // --- GET Operation Tests ---
 
     @Test
     public void testGetNoDirectoryFound() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
@@ -200,39 +213,42 @@ public class QueryHandlerTest {
         verify(mockDb, never()).get(any(), anyString());
     }
 
+    // --- CREATE Operation Tests ---
+
     @Test
-    public void testWriteRequiresMutationFlag() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+    public void testCreateRequiresMutationFlag() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), false);
         QueryResponse res = parseResponse(future);
 
         assertFalse(res.getSuccess());
-        assertEquals("WRITE operation requires mutation flag", res.getErrorMessage());
+        assertEquals("CREATE operation requires mutation flag", res.getErrorMessage());
     }
 
     @Test
-    public void testWriteNoDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "");
+    public void testCreateNoDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
         QueryResponse res = parseResponse(future);
 
         assertTrue(res.getSuccess());
-        assertEquals("OK ENTRY ADDED", res.getValue());
+        assertEquals("OK ENTRY CREATED", res.getValue());
         verify(mockDb).put("k".getBytes(), "v".getBytes());
     }
 
     @Test
-    public void testWriteWithDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "dir");
+    public void testCreateWithDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "dir");
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertTrue(parseResponse(future).getSuccess());
+        assertTrue(res.getSuccess());
         verify(mockDb).put("k".getBytes(), "v".getBytes(), "dir");
     }
 
     @Test
-    public void testWriteEmptyDirectoryTreatsAsNull() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", "");
+    public void testCreateEmptyDirectoryTreatsAsNull() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
         handler.handle(query.toByteArray(), true).get();
 
         verify(mockDb).put("k".getBytes(), "v".getBytes());
@@ -240,30 +256,100 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteEmptyKey() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "", "v", null);
+    public void testCreateEmptyKey() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "", "v", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertTrue(parseResponse(future).getSuccess());
+        assertTrue(res.getSuccess());
         verify(mockDb).put(eq(new byte[0]), eq("v".getBytes()));
     }
 
     @Test
-    public void testWriteEmptyValue() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
-        UserQuery query = createQuery(QueryType.WRITE, "k", "", null);
+    public void testCreateEmptyValue() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.CREATE, "k", "", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertTrue(parseResponse(future).getSuccess());
+        assertTrue(res.getSuccess());
         verify(mockDb).put(eq("k".getBytes()), eq(new byte[0]));
     }
+
+    @Test
+    public void testCreateFailsWhenKeyExists() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        when(mockDb.get("k".getBytes())).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", "");
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
+
+        assertFalse(res.getSuccess());
+        assertEquals("Key already exists", res.getErrorMessage());
+        assertEquals("old", res.getValue());
+        verify(mockDb, never()).put(any(), any());
+    }
+
+    // --- UPDATE Operation Tests ---
+
+    @Test
+    public void testUpdateRequiresMutationFlag() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), false);
+        QueryResponse res = parseResponse(future);
+
+        assertFalse(res.getSuccess());
+        assertEquals("UPDATE operation requires mutation flag", res.getErrorMessage());
+    }
+
+    @Test
+    public void testUpdateFailsWhenKeyMissing() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        when(mockDb.get("k".getBytes())).thenReturn(null);
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", "");
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
+
+        assertFalse(res.getSuccess());
+        assertEquals("Key does not exist", res.getErrorMessage());
+        assertEquals("__NOT_FOUND__", res.getValue());
+        verify(mockDb, never()).put(any(), any());
+    }
+
+    @Test
+    public void testUpdateNoDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        when(mockDb.get("k".getBytes())).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "new", "");
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
+
+        assertTrue(res.getSuccess());
+        assertEquals("OK ENTRY UPDATED", res.getValue());
+        verify(mockDb).put("k".getBytes(), "new".getBytes());
+    }
+
+    @Test
+    public void testUpdateWithDirectory() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        when(mockDb.get("k".getBytes(), "dir")).thenReturn("old".getBytes());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "new", "dir");
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
+
+        assertTrue(res.getSuccess());
+        verify(mockDb).put("k".getBytes(), "new".getBytes(), "dir");
+    }
+
+    // --- DELETE Operation Tests ---
 
     @Test
     public void testDeleteRequiresMutationFlag() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserQuery query = createQuery(QueryType.DELETE, "k", "", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), false);
+        QueryResponse res = parseResponse(future);
 
-        assertFalse(parseResponse(future).getSuccess());
-        assertEquals("DELETE operation requires mutation flag", parseResponse(future).getErrorMessage());
+        assertFalse(res.getSuccess());
+        assertEquals("DELETE operation requires mutation flag", res.getErrorMessage());
     }
 
     @Test
@@ -298,8 +384,9 @@ public class QueryHandlerTest {
 
         UserQuery query = createQuery(QueryType.DELETE, "k", "", "dir");
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertFalse(parseResponse(future).getSuccess());
+        assertFalse(res.getSuccess());
         verify(mockDb, never()).delete(any(), any());
     }
 
@@ -309,8 +396,9 @@ public class QueryHandlerTest {
 
         UserQuery query = createQuery(QueryType.DELETE, "k", "", "dir");
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertTrue(parseResponse(future).getSuccess());
+        assertTrue(res.getSuccess());
         verify(mockDb).delete("k".getBytes(), "dir");
     }
 
@@ -340,9 +428,12 @@ public class QueryHandlerTest {
 
         UserQuery query = createQuery(QueryType.DELETE, "", "", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
 
-        assertFalse(parseResponse(future).getSuccess());
+        assertFalse(res.getSuccess());
     }
+
+    // --- DB Exception Tests ---
 
     @Test
     public void testDbExceptionOnGet() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
@@ -357,15 +448,28 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testDbExceptionOnWrite() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+    public void testDbExceptionOnCreate() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         doThrow(new RuntimeException("Write Error")).when(mockDb).put(any(), any());
 
-        UserQuery query = createQuery(QueryType.WRITE, "k", "v", null);
+        UserQuery query = createQuery(QueryType.CREATE, "k", "v", null);
         CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
         QueryResponse res = parseResponse(future);
 
         assertFalse(res.getSuccess());
         assertTrue(res.getErrorMessage().contains("Write Error"));
+    }
+
+    @Test
+    public void testDbExceptionOnUpdate() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
+        when(mockDb.get(any())).thenReturn("old".getBytes());
+        doThrow(new RuntimeException("Update Error")).when(mockDb).put(any(), any());
+
+        UserQuery query = createQuery(QueryType.UPDATE, "k", "v", null);
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse res = parseResponse(future);
+
+        assertFalse(res.getSuccess());
+        assertTrue(res.getErrorMessage().contains("Update Error"));
     }
 
     @Test
@@ -406,9 +510,9 @@ public class QueryHandlerTest {
     }
 
     @Test
-    public void testWriteUtf8Values() throws ExecutionException, InterruptedException {
+    public void testCreateUtf8Values() throws ExecutionException, InterruptedException {
         String utf8Str = "😊";
-        UserQuery query = createQuery(QueryType.WRITE, "k", utf8Str, null);
+        UserQuery query = createQuery(QueryType.CREATE, "k", utf8Str, null);
         handler.handle(query.toByteArray(), true).get();
 
         verify(mockDb).put(eq("k".getBytes()), eq(utf8Str.getBytes(StandardCharsets.UTF_8)));
@@ -424,5 +528,29 @@ public class QueryHandlerTest {
 
         assertFalse(res.getSuccess());
         assertTrue(res.getErrorMessage().contains("Reserved Check Fail"));
+    }
+
+    @Test
+    public void testCreateEphemeralEntry() throws Exception {
+        String key = "ephemeralKey";
+        String value = "ephemeralValue";
+        String sessionToken = "session123";
+        String directory = "temp";
+
+        UserQuery query = UserQuery.newBuilder()
+                .setQueryType(QueryType.CREATE)
+                .setKey(key)
+                .setValue(value)
+                .setDirectory(directory)
+                .setSessionToken(sessionToken)
+                .setIsEphemeral(true)
+                .build();
+
+        CompletableFuture<Message> future = handler.handle(query.toByteArray(), true);
+        QueryResponse response = parseResponse(future);
+
+        assertTrue(response.getSuccess());
+        verify(mockDb).put(eq(key.getBytes()), eq(value.getBytes()), eq(directory));
+        verify(mockSessionManager).addEphemeralEntry(sessionToken, key, directory);
     }
 }

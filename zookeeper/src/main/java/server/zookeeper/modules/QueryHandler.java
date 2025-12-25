@@ -15,14 +15,17 @@ import server.zookeeper.proto.query.UserQuery;
 import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.util.ReservedDirectories;
 
-public class QueryHandler implements MessageHandler{
+public class QueryHandler implements MessageHandler {
     private final DataBase keyValStore;
-    private final String HANDLER_TYPE = "QUERY";
+    private final SessionManager sessionManager;
+    private static final String HANDLER_TYPE = "QUERY";
     private final Logger LOG = LoggerFactory.getLogger(QueryHandler.class);
     // TODO : use dependency injection
     private final WatchManager watchManager = new WatchManager();
-    public QueryHandler(DataBase keyValStore) {
+
+    public QueryHandler(DataBase keyValStore, SessionManager sessionManager) {
         this.keyValStore = keyValStore;
+        this.sessionManager = sessionManager;
     }
 
     @Override
@@ -44,6 +47,18 @@ public class QueryHandler implements MessageHandler{
                     break;
                 case WRITE:
                     write(isMutation, response, query, directory);
+                return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
+            }
+            switch (query.getQueryType()) {
+                case GET:
+                    get(directory, query, response);
+                    break;
+                case CREATE:
+                    create(isMutation, response, query, directory);
+                    watchManager.triggerNotify(key, directory, query.getValue().getBytes(StandardCharsets.UTF_8), WatchEventType.PUT_EVENT);
+                    break;
+                case UPDATE:
+                    update(isMutation, response, query, directory);
                     watchManager.triggerNotify(key, directory, query.getValue().getBytes(StandardCharsets.UTF_8), WatchEventType.PUT_EVENT);
                     break;
                 case DELETE:
@@ -57,7 +72,7 @@ public class QueryHandler implements MessageHandler{
                     response.setSuccess(false).setErrorMessage("Invalid query type");
                     break;
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             response.setSuccess(false).setErrorMessage("Failed to handle query: " + e.getMessage());
         }
         LOG.info("SUCCESSFULLY EXECUTED");
@@ -68,23 +83,25 @@ public class QueryHandler implements MessageHandler{
             response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");
             return;
         }
-            String key = query.getKey();
+        String key = query.getKey();
 
-            String dir = (directory == null || directory.isEmpty()) ? null : directory;
-            byte[] existing = getExisting(dir, key);
+        String dir = (directory == null || directory.isEmpty()) ? null : directory;
+        byte[] existing = getExisting(dir, key);
 
-            if (existing == null) {
-                response.setSuccess(false)
-                        .setErrorMessage("Key does not exist")
-                        .setValue("__NOT_FOUND__");
-                LOG.info("KEY DOESN'T EXIST");
-            } else {
-                // Key exists, perform deletion
-                if (dir == null) keyValStore.delete(key.getBytes());
-                else keyValStore.delete(key.getBytes(), dir);
+        if (existing == null) {
+            response.setSuccess(false)
+                    .setErrorMessage("Key does not exist")
+                    .setValue("__NOT_FOUND__");
+            LOG.info("KEY DOESN'T EXIST");
+        } else {
+            // Key exists, perform deletion
+            if (dir == null)
+                keyValStore.delete(key.getBytes());
+            else
+                keyValStore.delete(key.getBytes(), dir);
 
-                response.setSuccess(true)
-                        .setValue("OK ENTRY DELETED");
+            response.setSuccess(true)
+                    .setValue("OK ENTRY DELETED");
         }
     }
 
@@ -93,25 +110,60 @@ public class QueryHandler implements MessageHandler{
                 : keyValStore.get(key.getBytes(), dir);
     }
 
-    private void write(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+    private void create(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
-            response.setSuccess(false).setErrorMessage("WRITE operation requires mutation flag");
-        } else {
-            String key = query.getKey();
-            String val = query.getValue();
-            if (directory == null) keyValStore.put(key.getBytes(), val.getBytes());
-            else keyValStore.put(key.getBytes(), val.getBytes(), directory);
-
-            response.setSuccess(true).setValue("OK ENTRY ADDED");
+            response.setSuccess(false).setErrorMessage("CREATE operation requires mutation flag");
+            return;
         }
+
+        String key = query.getKey();
+        String dir = (directory == null || directory.isEmpty()) ? null : directory;
+        byte[] existing = getExisting(dir, key);
+
+        if (existing != null) {
+            response.setSuccess(false)
+                    .setErrorMessage("Key already exists")
+                    .setValue(new String(existing, StandardCharsets.UTF_8));
+            return;
+        }
+
+        if (dir == null) keyValStore.put(key.getBytes(), query.getValue().getBytes());
+        else keyValStore.put(key.getBytes(), query.getValue().getBytes(), dir);
+
+        if (query.getIsEphemeral()) sessionManager.addEphemeralEntry(query.getSessionToken(), key, dir);
+
+        response.setSuccess(true).setValue("OK ENTRY CREATED");
+    }
+
+    private void update(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
+        if (!isMutation) {
+            response.setSuccess(false).setErrorMessage("UPDATE operation requires mutation flag");
+            return;
+        }
+
+        String key = query.getKey();
+        String dir = (directory == null || directory.isEmpty()) ? null : directory;
+        byte[] existing = getExisting(dir, key);
+
+        if (existing == null) {
+            response.setSuccess(false)
+                    .setErrorMessage("Key does not exist")
+                    .setValue("__NOT_FOUND__");
+            return;
+        }
+
+        if (dir == null) keyValStore.put(key.getBytes(), query.getValue().getBytes());
+        else keyValStore.put(key.getBytes(), query.getValue().getBytes(), dir);
+
+        response.setSuccess(true).setValue("OK ENTRY UPDATED");
     }
 
     private void get(String directory, UserQuery query, QueryResponse.Builder response) {
         byte[] valueArr = getExisting(directory, query.getKey());
         String value = (valueArr == null) ? "__NOT_FOUND__" : new String(valueArr, StandardCharsets.UTF_8);
-        if(value.equals("__NOT_FOUND__")){
+        if (value.equals("__NOT_FOUND__")) {
             response.setSuccess(false).setErrorMessage("key not found").setValue(value);
-        }else{
+        } else {
             response.setSuccess(true).setValue(value);
         }
     }

@@ -8,7 +8,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-placeholder-client-id}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-placeholder-client-secret}"
       BASE_URL: "http://localhost:8080"
     restart: unless-stopped

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import PropTypes from 'prop-types';
-import Box from '@mui/material/Box';
+// import Box from '@mui/material/Box';
 import { createTheme } from '@mui/material/styles';
 import { AppProvider } from '@toolpad/core/AppProvider';
 import { DashboardLayout } from '@toolpad/core/DashboardLayout';
@@ -45,7 +45,16 @@ DemoPageContent.propTypes = { pathname: PropTypes.string.isRequired };
 function Home() {
   const router = useDemoRouter('read');
 
-  const handleLogOut = () => {
+  const handleLogOut = async () => {
+    try {
+      await fetch('http://localhost:8080/auth/logout', {
+        method: 'POST',
+        credentials: 'include', // Include cookies
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+
     localStorage.removeItem('auth');
     localStorage.removeItem('token');
     sessionStorage.clear();

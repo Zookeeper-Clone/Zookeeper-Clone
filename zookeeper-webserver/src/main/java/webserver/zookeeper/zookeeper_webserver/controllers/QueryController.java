@@ -23,53 +23,73 @@ public class QueryController {
     public static abstract class Request {
         private String key;
         private String directory;
-        public String getKey() { return key; }
-        public String getDirectory() { return directory; }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getDirectory() {
+            return directory;
+        }
     }
 
     public static class WriteRequest extends Request {
         private String value;
-        public String getValue() { return value; }
+        private boolean isEphemeral;
+        private boolean isUpdate; // true for update, false for create
+
+        public String getValue() {
+            return value;
+        }
+
+        public boolean getIsEphemeral() {
+            return isEphemeral;
+        }
+
+        public boolean getIsUpdate() {
+            return isUpdate;
+        }
     }
 
-    public static class ReadRequest extends Request {}
-    public static class DeleteRequest extends Request {}
+    public static class ReadRequest extends Request {
+    }
+
+    public static class DeleteRequest extends Request {
+    }
 
     @PostMapping("/read")
     public ResponseEntity<String> read(
             @CookieValue("SESSION_TOKEN") String sessionToken,
-            @RequestBody ReadRequest readRequest
-    ) throws Exception {
+            @RequestBody ReadRequest readRequest) throws Exception {
         return handleRequest(() -> queryService.read(readRequest), sessionToken);
     }
 
     @PostMapping("/write")
     public ResponseEntity<String> write(
             @CookieValue("SESSION_TOKEN") String sessionToken,
-            @RequestBody WriteRequest writeRequest
-    ) throws Exception {
+            @RequestBody WriteRequest writeRequest) throws Exception {
         return handleRequest(() -> queryService.write(writeRequest), sessionToken);
     }
 
     @PostMapping("/delete")
     public ResponseEntity<String> delete(
             @CookieValue("SESSION_TOKEN") String sessionToken,
-            @RequestBody DeleteRequest deleteRequest
-    ) throws Exception {
-        System.out.println(deleteRequest.getDirectory());
-        System.out.println(deleteRequest.getKey());
+            @RequestBody DeleteRequest deleteRequest) throws Exception {
         return handleRequest(() -> queryService.delete(deleteRequest), sessionToken);
     }
 
     // --- Helper method to track metrics ---
-    private ResponseEntity<String> handleRequest(SupplierWithException<ResponseEntity<String>> action, String token) throws Exception {
+    private ResponseEntity<String> handleRequest(SupplierWithException<ResponseEntity<String>> action, String token)
+            throws Exception {
         zookeeperService.setToken(token);
         long start = System.nanoTime();
         metricsService.recordRequest();
         try {
             ResponseEntity<String> res = action.get();
-            if (res.getStatusCode().is2xxSuccessful()) metricsService.recordSuccess();
-            else metricsService.recordFail();
+            if (res.getStatusCode().is2xxSuccessful())
+                metricsService.recordSuccess();
+            else
+                metricsService.recordFail();
             return res;
         } catch (Exception e) {
             metricsService.recordFail();
