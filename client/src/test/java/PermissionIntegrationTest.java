@@ -32,8 +32,10 @@ public class PermissionIntegrationTest {
         client.register("bob@example.com", "bobpwd123");
 
         // create and login an admin user to perform permission changes
-        client.register("perm_admin@user.com", "adminpass");
+        client.register("perm_admin@user.com", "adminpass1");
         client.login("perm_admin@user.com", "adminpass1");
+        // Grant admin permissions to manage other users' permissions
+        client.setIsAdmin("perm_admin@user.com", true);
 
 
     }

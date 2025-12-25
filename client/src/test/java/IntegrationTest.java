@@ -28,6 +28,8 @@ public class IntegrationTest {
         client = new ZookeeperClient(raftClient, event -> {});
         client.register("test@user.com", "user12345");
         client.login("test@user.com", "user12345");
+        // Grant admin permissions to bypass authorization checks
+        client.setIsAdmin("test@user.com", true);
     }
 
     @AfterAll
@@ -257,6 +259,8 @@ public class IntegrationTest {
         try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {})) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
+            // Grant admin permissions to bypass authorization checks
+            ephemeralClient.setIsAdmin("ephemeral@user.com", true);
             String key = namespaced("ephemeralKey");
             String value = "temporary";
 
