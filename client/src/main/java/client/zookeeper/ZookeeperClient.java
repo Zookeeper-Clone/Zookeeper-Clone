@@ -273,7 +273,11 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public void addWatch(String key, String directory) {
-        watchHandler.sendWatchRequest(key, directory);
+        watchHandler.sendWatchRequest(key, directory, null);
+    }
+
+    public void addWatch(String key, String directory, Watcher watcher) {
+        watchHandler.sendWatchRequest(key, directory, watcher);
     }
 
     private PermissionsResult sendPermissionsRequest(UserPermissionsRequest request, boolean isReadOnly) {
