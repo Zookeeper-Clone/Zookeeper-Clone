@@ -35,7 +35,7 @@ public class QueryHandlerTest {
         mockWatchManager = mock(WatchManager.class);
         mockSessionManager = mock(SessionManager.class);
         // Assuming QueryHandler constructor accepts all dependencies now
-        handler = new QueryHandler(mockDb, mockWatchManager, mockSessionManager);
+        handler = new QueryHandler(mockDb, mockSessionManager);
         reservedMock = mockStatic(ReservedDirectories.class);
     }
 

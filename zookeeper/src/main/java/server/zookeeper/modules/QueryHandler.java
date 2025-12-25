@@ -41,14 +41,6 @@ public class QueryHandler implements MessageHandler {
                         .setErrorMessage(ReservedDirectories.getReservedDirectoryError(directory));
                 return CompletableFuture
                         .completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));            }
-            switch (query.getQueryType()){
-                case GET:
-                    get(directory, query, response);
-                    break;
-                case WRITE:
-                    write(isMutation, response, query, directory);
-                return Message.valueOf(ByteString.copyFrom(response.build().toByteArray()));
-            }
             switch (query.getQueryType()) {
                 case GET:
                     get(directory, query, response);
