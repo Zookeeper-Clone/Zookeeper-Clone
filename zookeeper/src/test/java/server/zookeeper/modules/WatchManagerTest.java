@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.WatchEvent;
 import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.util.ReservedDirectories;
@@ -24,8 +25,10 @@ class WatchManagerTest {
     private MockedStatic<ReservedDirectories> reservedMock;
     private static final String TEST_KEY = "node1";
     private static final String TEST_DIR = "/app/configs";
+    // Data is no longer part of WatchEvent based on the new schema, but still used for notification triggers
     private static final byte[] TEST_DATA = "new_value".getBytes(StandardCharsets.UTF_8);
     private static final WatchEventType TEST_EVENT = WatchEventType.DELETE_EVENT;
+
     @BeforeEach
     void setUp() {
         watchManager = new WatchManager();
@@ -45,11 +48,20 @@ class WatchManagerTest {
 
         assertFalse(watch.isDone(), "Watch should be pending initially");
 
+        // Note: triggerNotify internal logic should now populate key and column_family in WatchEvent
         watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
 
         assertTrue(watch.isDone(), "Watch should be completed after trigger");
         Message result = watch.get(1, TimeUnit.SECONDS);
-        assertArrayEquals(TEST_DATA, result.getContent().toByteArray());
+
+        QueryResponse response = QueryResponse.parseFrom(result.getContent().toByteArray());
+        assertTrue(response.getSuccess());
+        assertTrue(response.hasWatchEvents());
+
+        WatchEvent event = response.getWatchEvents();
+        assertEquals(TEST_EVENT, event.getEventType());
+        assertEquals(TEST_KEY, event.getKey());
+        assertEquals(TEST_DIR, event.getColumnFamily());
     }
 
     @Test
@@ -64,8 +76,13 @@ class WatchManagerTest {
         assertTrue(watcher1.isDone());
         assertTrue(watcher2.isDone());
 
-        assertArrayEquals(TEST_DATA, watcher1.get().getContent().toByteArray());
-        assertArrayEquals(TEST_DATA, watcher2.get().getContent().toByteArray());
+        QueryResponse res1 = QueryResponse.parseFrom(watcher1.get().getContent().toByteArray());
+        QueryResponse res2 = QueryResponse.parseFrom(watcher2.get().getContent().toByteArray());
+
+        assertEquals(TEST_KEY, res1.getWatchEvents().getKey());
+        assertEquals(TEST_KEY, res2.getWatchEvents().getKey());
+        assertEquals(TEST_DIR, res1.getWatchEvents().getColumnFamily());
+        assertEquals(TEST_DIR, res2.getWatchEvents().getColumnFamily());
     }
 
     @Test
@@ -93,10 +110,6 @@ class WatchManagerTest {
         watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
         assertTrue(watch.isDone());
 
-        // Triggering again with different data
-        byte[] newerData = "even_newer".getBytes(StandardCharsets.UTF_8);
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, newerData, TEST_EVENT);
-
         // A new watch added now should NOT have been affected by the previous triggers
         CompletableFuture<Message> newWatch = watchManager.addWatch(TEST_KEY, TEST_DIR);
         assertFalse(newWatch.isDone());
@@ -115,7 +128,6 @@ class WatchManagerTest {
     void shouldRespectValueEquality() throws Exception {
         reservedMock.when(() -> ReservedDirectories.isReserved(anyString())).thenReturn(false);
 
-        // Create strings dynamically to ensure they aren't the same reference
         String dir1 = new String("/dir");
         String dir2 = new String("/dir");
 
@@ -126,13 +138,16 @@ class WatchManagerTest {
     }
 
     @Test
-    @DisplayName("Should throw exception or return error when watching a reserved directory")
-    void shouldHandleReservedDirectory() throws ExecutionException, InterruptedException {
+    @DisplayName("Should return error QueryResponse when watching a reserved directory")
+    void shouldHandleReservedDirectory() throws ExecutionException, InterruptedException, com.google.protobuf.InvalidProtocolBufferException {
         String reservedDir = "/sys";
         reservedMock.when(() -> ReservedDirectories.isReserved(reservedDir)).thenReturn(true);
         reservedMock.when(() -> ReservedDirectories.getReservedDirectoryError(reservedDir)).thenReturn("Reserved");
 
         Message msg = watchManager.addWatch("l", "/sys").get();
-        assertEquals(msg.getContent().toStringUtf8(), "Reserved");
+
+        QueryResponse response = QueryResponse.parseFrom(msg.getContent().toByteArray());
+        assertFalse(response.getSuccess());
+        assertEquals("Reserved", response.getErrorMessage());
     }
 }

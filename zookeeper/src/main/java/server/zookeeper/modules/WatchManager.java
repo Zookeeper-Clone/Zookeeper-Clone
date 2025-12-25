@@ -18,9 +18,17 @@ public class WatchManager {
     private final Map<WatchKey, List<CompletableFuture<Message>>> watchMap = new ConcurrentHashMap<>();
 
     public CompletableFuture<Message> addWatch(String key, String directory){
-        if(ReservedDirectories.isReserved(directory)){
+        if (ReservedDirectories.isReserved(directory)) {
             String error = ReservedDirectories.getReservedDirectoryError(directory);
-            return CompletableFuture.completedFuture(Message.valueOf(error));
+
+            QueryResponse response = QueryResponse.newBuilder()
+                    .setSuccess(false)
+                    .setErrorMessage(error)
+                    .build();
+
+            return CompletableFuture.completedFuture(
+                    Message.valueOf(ByteString.copyFrom(response.toByteArray()))
+            );
         }
         WatchKey watchKey = new WatchKey(key, directory);
         CompletableFuture<Message> future = new CompletableFuture<>();
