@@ -15,8 +15,11 @@ public class Client {
                                     .build();
         ZookeeperClient client = new ZookeeperClient(raftClient, event -> {});
         ZookeeperClient.AuthenticationResult registerResult = client.register("admin@admin.com","adminpass22");
-        System.out.println(registerResult.getMessage());
-        client.login("admin@admin.com","adminpass22");
-        client.addWatch("nasr","nasr");
+        client.register("nasr@gmail.com","johncena123");
+        client.login("nasr@gmail.com","johncena123");
+        System.out.println(client.getUserPermissionsByEmail("nasr@gmail.com"));
+        client.setIsAdmin("nasr@gmail.com",true);
+        client.register("lajloojy@gmail.com","johncena123");
+        client.login("lajloojy@gmail.com","johncena123");
     }
 }

@@ -30,11 +30,12 @@ export default function EditPage() {
   const [directoryInput, setDirectoryInput] = useState("");
   const [valueInput, setValueInput] = useState("");
   const [isEphemeral, setIsEphemeral] = useState(false);
-  const [operationType, setOperationType] = useState("create"); // "create" or "update"
+  const [operationType, setOperationType] = useState("create");
 
   // Error dialog state
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
 
   // Load from localStorage
   const [historyData, setHistoryData] = useState(
@@ -46,6 +47,111 @@ export default function EditPage() {
   const [cannedOperations, setCannedOperations] = useState(
     JSON.parse(localStorage.getItem("writeCannedOperations")) || []
   );
+
+  // Load user data from localStorage
+  const getCurrentUserData = () => {
+    const userDataStr = localStorage.getItem("currentUser");
+    console.log("Loading currentUser from localStorage:", userDataStr);
+
+    if (!userDataStr) return { admin: false, permissions: {} };
+
+    try {
+      const userData = JSON.parse(userDataStr);
+      return {
+        admin: userData.admin || false,
+        permissions: userData.permissions || {}
+      };
+    } catch (e) {
+      console.error("Error parsing currentUser:", e);
+      return { admin: false, permissions: {} };
+    }
+  };
+
+// Initialize state from localStorage immediately
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const userData = getCurrentUserData();
+    return userData.admin;
+  });
+
+  const [userPermissions, setUserPermissions] = useState(() => {
+    const userData = getCurrentUserData();
+    return userData.permissions;
+  });
+
+  useEffect(() => {
+    console.log("=== useEffect running to load user data ===");
+    const permissions = localStorage.getItem('permissions')
+
+    try {
+      const userData = JSON.parse(permissions);
+      console.log("Parsed userData:", userData);
+      console.log("Setting isAdmin to:", !!userData.admin);
+      console.log("Setting userPermissions to:", userData.permissions || {});
+      setIsAdmin(!!userData.admin);
+      setUserPermissions(userData.permissions || {});
+    } catch (e) {
+      console.error("Error parsing currentUser:", e);
+      setIsAdmin(false);
+      setUserPermissions({});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      const data = JSON.parse(localStorage.getItem("currentUser"));
+      if (data) {
+        setIsAdmin(!!data.admin);
+        setUserPermissions(data.permissions || {});
+      }
+    };
+
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+  // Check if user has specific permission across any directory
+  const hasPermission = (permissionType) => {
+    const permissionValues = {
+      create: 1,
+      read: 2,
+      update: 4,
+      delete: 8,
+    };
+
+    const permValue = permissionValues[permissionType];
+    if (!permValue) return false;
+
+    // Check if user is admin
+    if (isAdmin === true) {
+      console.log("User is admin, granting all permissions");
+      return true;
+    }
+
+    // If no permissions, return false
+    if (!userPermissions || Object.keys(userPermissions).length === 0) {
+      console.log(`No permissions found for ${permissionType}`);
+      return false;
+    }
+
+    // Check across all directories
+    const hasPermissionResult = Object.values(userPermissions).some(
+      (dirPermission) => {
+        const numPermission = Number(dirPermission);
+        const hasPerm = (numPermission & permValue) === permValue;
+        console.log(`Checking directory permission ${dirPermission} for ${permissionType} (${permValue}):`, hasPerm);
+        return hasPerm;
+      }
+    );
+
+    console.log(`Final result for ${permissionType}:`, hasPermissionResult);
+    return hasPermissionResult;
+  };
+
+  const canCreate = hasPermission("create");
+  const canUpdate = hasPermission("update");
+  const canDelete = hasPermission("delete");
+
+  console.log("Permission summary - canCreate:", canCreate, "canUpdate:", canUpdate, "canDelete:", canDelete);
 
   const clearHistory = () => {
     setHistoryData([]);
@@ -120,7 +226,7 @@ export default function EditPage() {
   const [newOpValue, setNewOpValue] = useState("");
   const [newOpType, setNewOpType] = useState("write");
   const [newOpIsEphemeral, setNewOpIsEphemeral] = useState(false);
-  const [newOpOperationType, setNewOpOperationType] = useState("create"); // "create" or "update"
+  const [newOpOperationType, setNewOpOperationType] = useState("create");
 
   const addCannedOperation = () => {
     if (!newOpKey.trim()) return;
@@ -137,7 +243,7 @@ export default function EditPage() {
       value: newOpValue,
       type: newOpType,
       isEphemeral: newOpIsEphemeral,
-      operationType: newOpOperationType, // "create" or "update"
+      operationType: newOpOperationType,
     };
 
     setCannedOperations([...cannedOperations, newOp]);
@@ -189,16 +295,13 @@ export default function EditPage() {
         let errorMsg = `Request failed with status ${response.status}`;
 
         try {
-          // Get response as text first
           const responseText = await response.text();
 
           if (responseText) {
-            // Try to parse it as JSON
             try {
               const errorData = JSON.parse(responseText);
               errorMsg = errorData.message || errorData.error || responseText;
             } catch {
-              // If it's not JSON, use the text directly
               errorMsg = responseText;
             }
           }
@@ -249,6 +352,17 @@ export default function EditPage() {
   };
 
   const handleWrite = () => {
+    if (operationType === "create" && !canCreate) {
+      setErrorMessage("You don't have create permission");
+      setErrorDialogOpen(true);
+      return;
+    }
+    if (operationType === "update" && !canUpdate) {
+      setErrorMessage("You don't have update permission");
+      setErrorDialogOpen(true);
+      return;
+    }
+
     sendCommand(
       "write",
       keyInput,
@@ -260,10 +374,34 @@ export default function EditPage() {
   };
 
   const handleDelete = () => {
+    if (!canDelete) {
+      setErrorMessage("You don't have delete permission");
+      setErrorDialogOpen(true);
+      return;
+    }
+
     sendCommand("delete", keyInput, directoryInput, null);
   };
 
   const handleExecute = (op) => {
+    if (op.type === "write") {
+      const opType = op.operationType || "create";
+      if (opType === "create" && !canCreate) {
+        setErrorMessage("You don't have create permission");
+        setErrorDialogOpen(true);
+        return;
+      }
+      if (opType === "update" && !canUpdate) {
+        setErrorMessage("You don't have update permission");
+        setErrorDialogOpen(true);
+        return;
+      }
+    } else if (op.type === "delete" && !canDelete) {
+      setErrorMessage("You don't have delete permission");
+      setErrorDialogOpen(true);
+      return;
+    }
+
     sendCommand(
       op.type,
       op.key,
@@ -273,6 +411,10 @@ export default function EditPage() {
       op.operationType || "create"
     );
   };
+
+  const isWriteDisabled =
+    (operationType === "create" && !canCreate) ||
+    (operationType === "update" && !canUpdate);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -313,8 +455,12 @@ export default function EditPage() {
                 onChange={(e) => setOperationType(e.target.value)}
                 sx={{ textAlign: "left" }}
               >
-                <MenuItem value="create">Create</MenuItem>
-                <MenuItem value="update">Update</MenuItem>
+                <MenuItem value="create" disabled={!canCreate}>
+                  Create {!canCreate && "(No Permission)"}
+                </MenuItem>
+                <MenuItem value="update" disabled={!canUpdate}>
+                  Update {!canUpdate && "(No Permission)"}
+                </MenuItem>
               </Select>
             </FormControl>
 
@@ -330,6 +476,7 @@ export default function EditPage() {
                   variant="contained"
                   sx={{ mr: 2 }}
                   onClick={handleWrite}
+                  disabled={isWriteDisabled}
                 >
                   Write
                 </Button>
@@ -338,6 +485,7 @@ export default function EditPage() {
                   variant="contained"
                   color="error"
                   onClick={handleDelete}
+                  disabled={!canDelete}
                 >
                   Delete
                 </Button>
