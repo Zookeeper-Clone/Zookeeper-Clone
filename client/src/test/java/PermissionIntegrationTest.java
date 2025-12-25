@@ -25,7 +25,7 @@ public class PermissionIntegrationTest {
                 .setPeers(IDS, PORTS)
                 .setGroupId(GROUP_ID)
                 .build();
-        client = new ZookeeperClient(raftClient);
+        client = new ZookeeperClient(raftClient, event -> {});
 
 //         register target users that will have permissions updated
         client.register("alice@example.com", "alicepwd12");

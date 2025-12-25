@@ -1,5 +1,6 @@
 package client.zookeeper;
 
+import client.zookeeper.watches.Watcher;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.Message;
@@ -19,10 +20,13 @@ import server.zookeeper.proto.permissions.UserPermissionsResponse;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
+import server.zookeeper.proto.query.WatchEvent;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public class ZookeeperClient implements AutoCloseable {
@@ -30,13 +34,15 @@ public class ZookeeperClient implements AutoCloseable {
 
     private final RaftClient raftClient;
     private final SessionManager sessionManager;
+    private final WatchHandler watchHandler = new WatchHandler();
+    private final Watcher watcher;
 
     public void setSessionToken(String token) {
         sessionManager.startSession(token, this::sendHeartbeat);
     }
-
-    public ZookeeperClient(RaftClient raftClient) {
+    public ZookeeperClient(RaftClient raftClient, Watcher watcher) {
         this.raftClient = raftClient;
+        this.watcher = watcher;
         this.sessionManager = new SessionManager();
     }
 
@@ -138,8 +144,8 @@ public class ZookeeperClient implements AutoCloseable {
         return sendRequest(authRequest, MessageType.AUTH, isReadOnly, this::parseAuthResponse);
     }
 
-    private QueryResult sendQueryRequest(UserQuery userQyery, boolean isReadOnly) {
-        return sendRequest(userQyery, MessageType.QUERY, isReadOnly, this::parseQueryResponse);
+    private QueryResult sendQueryRequest(UserQuery userQuery, boolean isReadOnly) {
+        return sendRequest(userQuery, MessageType.QUERY, isReadOnly, this::parseQueryResponse);
     }
 
     private <T> T sendRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly,
@@ -153,8 +159,9 @@ public class ZookeeperClient implements AutoCloseable {
             Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
 
             RaftClientReply reply = isReadOnly
-                    ? raftClient.io().sendReadOnly(message)
-                    : raftClient.io().send(message);
+                        ? raftClient.io().sendReadOnly(message)
+                        : raftClient.io().send(message);
+
             if (!reply.isSuccess()) {
                 return responseParser.apply(null);
             }
@@ -162,6 +169,23 @@ public class ZookeeperClient implements AutoCloseable {
         } catch (IOException e) {
             LOG.error("Request failed", e);
             return responseParser.apply(null);
+        }
+    }
+
+    private CompletableFuture<RaftClientReply> sendAsyncRequest(com.google.protobuf.Message request, MessageType type, boolean isReadOnly) {
+        try {
+            MessageWrapper wrapper = MessageWrapper.newBuilder()
+                    .setType(type)
+                    .setPayload(request.toByteString())
+                    .setSessionToken(sessionManager.getToken().orElseGet(String::new))
+                    .build();
+            Message message = Message.valueOf(ByteString.copyFrom(wrapper.toByteArray()));
+
+            return isReadOnly
+                    ? raftClient.async().sendReadOnly(message)
+                    : raftClient.async().send(message);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -248,6 +272,14 @@ public class ZookeeperClient implements AutoCloseable {
         return sendQueryRequest(q, false);
     }
 
+    public void addWatch(String key, String directory) {
+        watchHandler.sendWatchRequest(key, directory, null);
+    }
+
+    public void addWatch(String key, String directory, Watcher watcher) {
+        watchHandler.sendWatchRequest(key, directory, watcher);
+    }
+
     private PermissionsResult sendPermissionsRequest(UserPermissionsRequest request, boolean isReadOnly) {
         return sendRequest(request, MessageType.PERMISSIONS, isReadOnly, this::parsePermissionsResponse);
     }
@@ -302,8 +334,9 @@ public class ZookeeperClient implements AutoCloseable {
         }
         try {
             UserPermissionsResponse resp = UserPermissionsResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
-            return new PermissionsResult(resp.getSuccess(), resp.getErrorMessage(),
-                    resp.hasUserPermissions() ? resp.getUserPermissions() : null);
+            return new PermissionsResult(resp.getSuccess(),
+                                         resp.getErrorMessage(),
+                                         resp.hasUserPermissions() ? resp.getUserPermissions() : null);
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse permissions response", e);
             return PermissionsResult.failure("Invalid server response");
@@ -435,4 +468,135 @@ public class ZookeeperClient implements AutoCloseable {
                     success, message, value);
         }
     }
+
+    // TODO : refactor WatchHandler to its own file
+    private class WatchHandler {
+
+        public void sendWatchRequest(String key, String directory, Watcher customWatcher) {
+            UserQuery query = RequestFactory.buildUserQuery(
+                    QueryType.WATCH, key, "", directory,false, sessionManager.getToken());
+            CompletableFuture<RaftClientReply> res = sendAsyncRequest(query, MessageType.QUERY, true);
+
+            res.whenCompleteAsync((raftClientReply, throwable) -> {
+                if (throwable != null) {
+                    LOG.error("Watch request failed for key: {} dir: {}", key, directory, throwable);
+                    return;
+                }
+
+                if (raftClientReply == null) {
+                    LOG.error("Watch request returned null reply for key: {} dir: {}", key, directory);
+                    return;
+                }
+
+                if (handleFailure(key, directory, raftClientReply)) return;
+
+                ByteString content = raftClientReply.getMessage() == null ? null : raftClientReply.getMessage().getContent();
+                WatcherResult watcherResult = parseWatcherResponse(content);
+                if (!watcherResult.isSuccess()) {
+                    LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
+                            key, directory, watcherResult.getErrorMessage());
+                } else {
+                    LOG.info("Successfully set watch on key: {} in directory: {}", key, directory);
+                    try {
+                        if (customWatcher != null) customWatcher.process(watcherResult.getWatchEvent());
+                        else watcher.process(watcherResult.getWatchEvent());
+                    } catch (Exception e) {
+                        LOG.error("Watcher.process threw an exception for key: {} dir: {}", key, directory, e);
+                    }
+                }
+            });
+        }
+
+        private boolean handleFailure(String key, String directory, RaftClientReply raftClientReply) {
+            if (!raftClientReply.isSuccess()) {
+                // Attempt to parse any error payload if present
+                if (raftClientReply.getMessage() != null) {
+                    WatcherResult watcherResult = parseWatcherResponse(raftClientReply.getMessage().getContent());
+                    LOG.error("Failed to set watch on key: {} in directory: {}. Error: {}",
+                            key, directory, watcherResult.getErrorMessage());
+                } else {
+                    LOG.error("Failed to set watch on key: {} in directory: {}. reply.isSuccess==false and no message present",
+                            key, directory);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public WatcherResult parseWatcherResponse(ByteString responseBytes) {
+
+            if (responseBytes == null) {
+                return new WatcherResult(false, "null response", null);
+            }
+
+            QueryResponse response;
+            try {
+                response = QueryResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
+            } catch (InvalidProtocolBufferException e) {
+                LOG.error("Failed to parse watcher response", e);
+                return new WatcherResult(false, "Invalid server response", null);
+            }
+
+            boolean success = response.getSuccess();
+            String errorMessage = response.getErrorMessage();
+            WatchEvent watchEvent = response.hasWatchEvents() ? response.getWatchEvents() : null;
+
+            if (errorMessage.isEmpty()) {
+                errorMessage = null;
+            }
+
+            return new WatcherResult(success, errorMessage, watchEvent);
+        }
+
+        private class WatcherResult {
+            private final boolean success;
+            private final String errorMessage;
+            private final WatchEvent watchEvent;
+
+            public WatcherResult(boolean success, String errorMessage, WatchEvent watchEvent) {
+                this.success = success;
+                this.errorMessage = errorMessage;
+                this.watchEvent = watchEvent;
+            }
+
+            public boolean isSuccess() {
+                return success;
+            }
+
+            public String getErrorMessage() {
+                return errorMessage;
+            }
+
+            public WatchEvent getWatchEvent() {
+                return watchEvent;
+            }
+
+            @Override
+            public String toString() {
+                return "WatcherResult{" +
+                        "success=" + success +
+                        ", errorMessage='" + errorMessage + '\'' +
+                        ", watchEvent=" + watchEvent +
+                        '}';
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                WatcherResult that = (WatcherResult) o;
+                return success == that.success &&
+                        Objects.equals(errorMessage, that.errorMessage) &&
+                        Objects.equals(watchEvent, that.watchEvent);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(success, errorMessage, watchEvent);
+            }
+        }
+    }
+
 }
+

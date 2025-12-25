@@ -19,7 +19,7 @@ public class TestStore {
     @BeforeEach
     void setUp() {
         // Do not initialize RaftClient; focus on logic-only tests
-        client = new ZookeeperClient(null);
+        client = new ZookeeperClient(null, event -> {});
     }
 
     // ===================== SESSION TOKEN TESTS =====================

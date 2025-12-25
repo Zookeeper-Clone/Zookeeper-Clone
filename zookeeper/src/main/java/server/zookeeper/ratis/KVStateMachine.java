@@ -126,8 +126,7 @@ public class KVStateMachine extends BaseStateMachine {
 
             LOG.debug("Applying transaction with payload size: {} bytes", payload.length);
 
-            Message response = messageRouter.route(payload, true);
-            return CompletableFuture.completedFuture(response);
+            return messageRouter.route(payload, true);
         } catch (Exception e) {
             LOG.error("Error applying transaction", e);
             Message errorMsg = Message.valueOf("ERROR: " + e.getMessage());
@@ -181,8 +180,7 @@ public class KVStateMachine extends BaseStateMachine {
 
             LOG.debug("Processing query with payload size: {} bytes", payload.length);
 
-            Message response = messageRouter.route(payload, false);
-            return CompletableFuture.completedFuture(response);
+            return messageRouter.route(payload, false);
 
         } catch (Exception e) {
             LOG.error("Error processing query", e);

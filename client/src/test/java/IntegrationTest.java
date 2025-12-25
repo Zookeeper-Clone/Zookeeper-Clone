@@ -25,7 +25,7 @@ public class IntegrationTest {
                 .setPeers(IDS, PORTS)
                 .setGroupId(GROUP_ID)
                 .build();
-        client = new ZookeeperClient(raftClient);
+        client = new ZookeeperClient(raftClient, event -> {});
         client.register("test@user.com", "user12345");
         client.login("test@user.com", "user12345");
     }
@@ -254,7 +254,7 @@ public class IntegrationTest {
                 .setGroupId(GROUP_ID)
                 .build();
 
-        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient)) {
+        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {})) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
             String key = namespaced("ephemeralKey");

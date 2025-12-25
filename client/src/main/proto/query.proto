@@ -24,16 +24,32 @@ message QueryResponse {
 
   string error_message = 2;
 
-  string value = 3;
+    string value = 3;
+
+    WatchEvent watch_events = 4;
 }
 enum QueryType {
-  GET = 0;
+    GET = 0;
 
-  CREATE = 1;
+    CREATE = 1;
 
-  UPDATE = 2;
+    UPDATE = 2;
 
-  DELETE = 3;
+    DELETE = 3;
 
-  QUERY_TYPE_UNSPECIFIED = 4;
+    WATCH = 4;
+
+    QUERY_TYPE_UNSPECIFIED = 5;
+}
+
+message WatchEvent {
+    WatchEventType event_type = 1;
+    string key = 2;
+    string column_family = 3;
+}
+
+enum WatchEventType {
+    WATCH_EVENT_UNKNOWN = 0;
+    PUT_EVENT = 1;
+    DELETE_EVENT = 2;
 }
