@@ -6,6 +6,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import server.zookeeper.proto.query.WatchEvent;
+import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.util.ReservedDirectories;
 
 import java.nio.charset.StandardCharsets;
@@ -23,7 +25,7 @@ class WatchManagerTest {
     private static final String TEST_KEY = "node1";
     private static final String TEST_DIR = "/app/configs";
     private static final byte[] TEST_DATA = "new_value".getBytes(StandardCharsets.UTF_8);
-
+    private static final WatchEventType TEST_EVENT = WatchEventType.DELETE_EVENT;
     @BeforeEach
     void setUp() {
         watchManager = new WatchManager();
@@ -43,7 +45,7 @@ class WatchManagerTest {
 
         assertFalse(watch.isDone(), "Watch should be pending initially");
 
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA);
+        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
 
         assertTrue(watch.isDone(), "Watch should be completed after trigger");
         Message result = watch.get(1, TimeUnit.SECONDS);
@@ -57,7 +59,7 @@ class WatchManagerTest {
         CompletableFuture<Message> watcher1 = watchManager.addWatch(TEST_KEY, TEST_DIR);
         CompletableFuture<Message> watcher2 = watchManager.addWatch(TEST_KEY, TEST_DIR);
 
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA);
+        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
 
         assertTrue(watcher1.isDone());
         assertTrue(watcher2.isDone());
@@ -75,7 +77,7 @@ class WatchManagerTest {
         CompletableFuture<Message> otherKeyWatch = watchManager.addWatch("otherKey", TEST_DIR);
         CompletableFuture<Message> otherDirWatch = watchManager.addWatch(TEST_KEY, "/other/dir");
 
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA);
+        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
 
         assertTrue(targetWatch.isDone(), "Target watch should be triggered");
         assertFalse(otherKeyWatch.isDone(), "Watch for different key should remain pending");
@@ -88,12 +90,12 @@ class WatchManagerTest {
         reservedMock.when(() -> ReservedDirectories.isReserved(TEST_DIR)).thenReturn(false);
         CompletableFuture<Message> watch = watchManager.addWatch(TEST_KEY, TEST_DIR);
 
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA);
+        watchManager.triggerNotify(TEST_KEY, TEST_DIR, TEST_DATA, TEST_EVENT);
         assertTrue(watch.isDone());
 
         // Triggering again with different data
         byte[] newerData = "even_newer".getBytes(StandardCharsets.UTF_8);
-        watchManager.triggerNotify(TEST_KEY, TEST_DIR, newerData);
+        watchManager.triggerNotify(TEST_KEY, TEST_DIR, newerData, TEST_EVENT);
 
         // A new watch added now should NOT have been affected by the previous triggers
         CompletableFuture<Message> newWatch = watchManager.addWatch(TEST_KEY, TEST_DIR);
@@ -104,7 +106,7 @@ class WatchManagerTest {
     @DisplayName("Should handle triggerNotify when no watchers exist")
     void shouldHandleTriggerWithNoWatchers() {
         assertDoesNotThrow(() -> {
-            watchManager.triggerNotify("nonexistent", "/none", "data".getBytes());
+            watchManager.triggerNotify("nonexistent", "/none", "data".getBytes(), TEST_EVENT);
         });
     }
 
@@ -118,7 +120,7 @@ class WatchManagerTest {
         String dir2 = new String("/dir");
 
         CompletableFuture<Message> watch = watchManager.addWatch("k", dir1);
-        watchManager.triggerNotify("k", dir2, TEST_DATA);
+        watchManager.triggerNotify("k", dir2, TEST_DATA, TEST_EVENT);
 
         assertTrue(watch.isDone(), "Watch should trigger because directory values match");
     }

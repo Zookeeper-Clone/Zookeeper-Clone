@@ -12,6 +12,7 @@ import server.zookeeper.DB.DataBase;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
+import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.util.ReservedDirectories;
 
 public class QueryHandler implements MessageHandler{
@@ -43,11 +44,11 @@ public class QueryHandler implements MessageHandler{
                     break;
                 case WRITE:
                     write(isMutation, response, query, directory);
-                    watchManager.triggerNotify(key, directory, response.build().toByteArray());
+                    watchManager.triggerNotify(key, directory, query.getValue().getBytes(StandardCharsets.UTF_8), WatchEventType.PUT_EVENT);
                     break;
                 case DELETE:
                     delete(isMutation, response, query, directory);
-                    watchManager.triggerNotify(key, directory, response.build().toByteArray());
+                    watchManager.triggerNotify(key, directory, new byte[0], WatchEventType.DELETE_EVENT);
                     break;
                 case WATCH:
                     LOG.info("Registering watch for key: {} in directory : {}" , key, directory);

@@ -490,6 +490,22 @@ public class ZookeeperClient implements AutoCloseable {
                     LOG.info("Successfully set watch on key: {} in directory: {}", key, directory);
                     try {
                         watcher.process(watcherResult.getWatchEvent());
+
+                        WatchEvent event = watcherResult.getWatchEvent();
+                        System.out.println("================================================================");
+                        System.out.println(">>> WATCH NOTIFICATION RECEIVED <<<");
+                        System.out.println("Path        : " + (directory == null ? "" : directory) + "/" + key);
+
+                        if (event != null) {
+                            System.out.println("Event Type  : " + event.getEventType());
+                        } else {
+                            System.out.println("Event Type  : GENERIC_MUTATION");
+                            System.out.println("Status      : Triggered by server-side update.");
+                            System.out.println("Note        : No specific WatchEvent object provided in payload.");
+                        }
+                        System.out.println("Time        : " + java.time.LocalDateTime.now());
+                        System.out.println("================================================================");
+
                     } catch (Exception e) {
                         LOG.error("Watcher.process threw an exception for key: {} dir: {}", key, directory, e);
                     }

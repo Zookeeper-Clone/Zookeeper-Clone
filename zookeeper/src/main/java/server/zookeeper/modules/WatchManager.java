@@ -2,6 +2,9 @@ package server.zookeeper.modules;
 
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import server.zookeeper.proto.query.QueryResponse;
+import server.zookeeper.proto.query.WatchEvent;
+import server.zookeeper.proto.query.WatchEventType;
 import server.zookeeper.records.WatchKey;
 import server.zookeeper.util.ReservedDirectories;
 
@@ -24,12 +27,27 @@ public class WatchManager {
         watchMap.computeIfAbsent(watchKey, k -> new CopyOnWriteArrayList<>()).add(future);
         return future;
     }
-    public void triggerNotify(String key, String directory, byte[] newData){
+    public void triggerNotify(String key, String directory, byte[] newData, WatchEventType eventType) {
         WatchKey watchKey = new WatchKey(key, directory);
         List<CompletableFuture<Message>> watchers = watchMap.remove(watchKey);
-        if (watchers != null){
-            Message msg = Message.valueOf(ByteString.copyFrom(newData));
-            for (CompletableFuture<Message> watcher : watchers){
+
+        if (watchers != null) {
+            // Build the structured WatchEvent
+            WatchEvent watchEvent = WatchEvent.newBuilder()
+                    .setEventType(eventType)
+                    .setKey(key)
+                    .setColumnFamily(directory)
+                    .build();
+
+            // Wrap it in a QueryResponse to match the client's WatcherResult
+            QueryResponse response = QueryResponse.newBuilder()
+                    .setSuccess(true)
+                    .setWatchEvents(watchEvent)
+                    .build();
+
+            Message msg = Message.valueOf(ByteString.copyFrom(response.toByteArray()));
+
+            for (CompletableFuture<Message> watcher : watchers) {
                 watcher.complete(msg);
             }
         }

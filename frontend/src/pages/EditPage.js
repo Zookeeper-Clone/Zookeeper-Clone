@@ -139,7 +139,7 @@ export default function EditPage() {
       body: JSON.stringify(payload),
       credentials: "include"
     });
-
+    console.log(response)
     pushHistory({
       key,
       directory: directory || "-",

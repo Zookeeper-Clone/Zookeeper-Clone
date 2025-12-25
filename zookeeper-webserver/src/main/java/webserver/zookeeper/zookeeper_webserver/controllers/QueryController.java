@@ -56,6 +56,8 @@ public class QueryController {
             @CookieValue("SESSION_TOKEN") String sessionToken,
             @RequestBody DeleteRequest deleteRequest
     ) throws Exception {
+        System.out.println(deleteRequest.getDirectory());
+        System.out.println(deleteRequest.getKey());
         return handleRequest(() -> queryService.delete(deleteRequest), sessionToken);
     }
 
