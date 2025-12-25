@@ -22,7 +22,6 @@ public class UserPermissionController {
     @GetMapping("/{email}/permissions")
     public UserDTO getPermissions(@PathVariable String email, @CookieValue("SESSION_TOKEN") String sessionToken)
     {
-        System.out.println("######################################3");
         zookeeperService.setToken(sessionToken);
         return service.getUserPermissions(email);
     }
