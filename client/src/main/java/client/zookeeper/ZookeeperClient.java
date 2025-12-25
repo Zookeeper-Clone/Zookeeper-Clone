@@ -470,7 +470,7 @@ public class ZookeeperClient implements AutoCloseable {
 
         public void sendWatchRequest(String key, String directory) {
             UserQuery query = RequestFactory.buildUserQuery(
-                    QueryType.WATCH, key, "", directory, sessionManager.getToken());
+                    QueryType.WATCH, key, "", directory,false, sessionManager.getToken());
             CompletableFuture<RaftClientReply> res = sendAsyncRequest(query, MessageType.QUERY, true);
 
             res.whenCompleteAsync((raftClientReply, throwable) -> {

@@ -254,7 +254,7 @@ public class IntegrationTest {
                 .setGroupId(GROUP_ID)
                 .build();
 
-        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient)) {
+        try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {})) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
             String key = namespaced("ephemeralKey");
