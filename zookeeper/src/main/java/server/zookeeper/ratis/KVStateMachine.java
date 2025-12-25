@@ -51,13 +51,17 @@ public class KVStateMachine extends BaseStateMachine {
         try {
             SessionRepository sessionRepository = new SessionRepository(keyValStore);
             SessionManager sessionManager = new SessionManager(sessionRepository, keyValStore);
-            QueryHandler queryHandler = new QueryHandler(keyValStore, sessionManager);
+            AuthRepository authRepository = new AuthRepository(keyValStore);
+            
+            // Create AuthzHandler first since QueryHandler depends on it
+            AuthzHandler authzHandler = new AuthzHandler(sessionRepository, authRepository);
+            
+            QueryHandler queryHandler = new QueryHandler(keyValStore, sessionManager, authzHandler);
             this.messageRouter = new MessageRouter(queryHandler, sessionManager);
             this.db = keyValStore;
 
             this.sessionCleanupWorker = new SessionCleanupWorker(sessionManager);
 
-            AuthRepository authRepository = new AuthRepository(keyValStore);
             PasswordHasher passwordHasher = PasswordHasher.getInstance();
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     GoogleNetHttpTransport.newTrustedTransport(),
@@ -67,7 +71,6 @@ public class KVStateMachine extends BaseStateMachine {
                     .build();
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
-            AuthzHandler authzHandler = new AuthzHandler(sessionRepository, authRepository);
 
             messageRouter.registerHandler(MessageType.QUERY, queryHandler);
             messageRouter.registerHandler(MessageType.AUTH, authHandler);
