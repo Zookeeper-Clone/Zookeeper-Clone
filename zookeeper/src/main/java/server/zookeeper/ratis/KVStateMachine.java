@@ -47,12 +47,11 @@ public class KVStateMachine extends BaseStateMachine {
     private final FileListStateMachineStorage storage = new FileListStateMachineStorage();
     private final SessionCleanupWorker sessionCleanupWorker;
 
-
     public KVStateMachine(DataBase keyValStore) {
         try {
             SessionRepository sessionRepository = new SessionRepository(keyValStore);
-            SessionManager sessionManager = new SessionManager(sessionRepository);
-            QueryHandler queryHandler = new QueryHandler(keyValStore);
+            SessionManager sessionManager = new SessionManager(sessionRepository, keyValStore);
+            QueryHandler queryHandler = new QueryHandler(keyValStore, sessionManager);
             this.messageRouter = new MessageRouter(queryHandler, sessionManager);
             this.db = keyValStore;
 
@@ -63,7 +62,8 @@ public class KVStateMachine extends BaseStateMachine {
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     GoogleNetHttpTransport.newTrustedTransport(),
                     GsonFactory.getDefaultInstance())
-                    .setAudience(Collections.singletonList("262245405443-qbbcc9te4oh15fmro35jghko6ho9r9ap.apps.googleusercontent.com"))
+                    .setAudience(Collections
+                            .singletonList("262245405443-qbbcc9te4oh15fmro35jghko6ho9r9ap.apps.googleusercontent.com"))
                     .build();
 
             AuthHandler authHandler = new AuthHandler(authRepository, passwordHasher, verifier, sessionManager);
@@ -126,8 +126,7 @@ public class KVStateMachine extends BaseStateMachine {
 
             LOG.debug("Applying transaction with payload size: {} bytes", payload.length);
 
-            Message response = messageRouter.route(payload, true);
-            return CompletableFuture.completedFuture(response);
+            return messageRouter.route(payload, true);
         } catch (Exception e) {
             LOG.error("Error applying transaction", e);
             Message errorMsg = Message.valueOf("ERROR: " + e.getMessage());
@@ -181,8 +180,7 @@ public class KVStateMachine extends BaseStateMachine {
 
             LOG.debug("Processing query with payload size: {} bytes", payload.length);
 
-            Message response = messageRouter.route(payload, false);
-            return CompletableFuture.completedFuture(response);
+            return messageRouter.route(payload, false);
 
         } catch (Exception e) {
             LOG.error("Error processing query", e);
@@ -190,7 +188,6 @@ public class KVStateMachine extends BaseStateMachine {
             return CompletableFuture.completedFuture(errorMsg);
         }
     }
-
 
     @Override
     public long takeSnapshot() {
@@ -222,8 +219,7 @@ public class KVStateMachine extends BaseStateMachine {
         FileListSnapshotInfo snapshotInfo = new FileListSnapshotInfo(
                 fileList,
                 lastApplied.getTerm(),
-                lastApplied.getIndex()
-        );
+                lastApplied.getIndex());
 
         storage.updateLatestSnapshot(snapshotInfo);
         return lastApplied.getIndex();

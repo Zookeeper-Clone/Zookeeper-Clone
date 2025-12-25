@@ -16,7 +16,7 @@ It includes a client library and a server implementation that can run as a clust
 
 ## 1. Build the Fat JAR
 
-A **fat JAR** includes all dependencies, so the Docker image can run without Maven.
+A **fat JAR** includes all dependencies, **so** the Docker image can run without Maven.
 
 ```bash
 # Navigate to the project directory

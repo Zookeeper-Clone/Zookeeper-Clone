@@ -2,12 +2,8 @@ package webserver.zookeeper.zookeeper_webserver.services;
 
 import client.zookeeper.ZookeeperClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import webserver.zookeeper.zookeeper_webserver.dto.auth.*;
-
-import java.util.Map;
 
 @Service
 public class AuthService {
@@ -29,12 +25,16 @@ public class AuthService {
         return toAuthResult(result);
     }
 
+    public AuthResult logout() {
+        var result = zookeeperClient.logout();
+        return toAuthResult(result);
+    }
+
     // Helper to wrap ZookeeperClient results
     private AuthResult toAuthResult(ZookeeperClient.AuthenticationResult result) {
         return new AuthResult(
                 result.isSuccess(),
                 result.getMessage(),
-                result.getSessionToken().orElse(null)
-        );
+                result.getSessionToken().orElse(null));
     }
 }

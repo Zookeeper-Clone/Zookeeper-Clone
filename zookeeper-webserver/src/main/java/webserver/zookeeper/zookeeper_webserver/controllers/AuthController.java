@@ -26,7 +26,8 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequestDTO dto, HttpServletResponse response) {
         AuthResult result = auth.register(dto.email(), dto.password());
-        if (!result.success()) return ResponseEntity.badRequest().body(result.message());
+        if (!result.success())
+            return ResponseEntity.badRequest().body(result.message());
         setSessionCookie(response, result);
         zookeeperService.setToken(result.sessionToken());
         return ResponseEntity.ok("Registered successfully");
@@ -35,7 +36,8 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO dto, HttpServletResponse response) {
         AuthResult result = auth.login(dto.email(), dto.password());
-        if (!result.success()) return ResponseEntity.badRequest().body(result.message());
+        if (!result.success())
+            return ResponseEntity.badRequest().body(result.message());
         setSessionCookie(response, result);
         zookeeperService.setToken(result.sessionToken());
         return ResponseEntity.ok("Logged in successfully");
@@ -57,5 +59,23 @@ public class AuthController {
     @GetMapping("/me")
     public Map<String, String> getToken(@CookieValue("SESSION_TOKEN") String token) {
         return Map.of("token", token);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@CookieValue(value = "SESSION_TOKEN", required = false) String token,
+            HttpServletResponse response) {
+        AuthResult result = auth.logout();
+        zookeeperService.setToken(null);
+
+        Cookie cookie = new Cookie("SESSION_TOKEN", "");
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+
+        if (!result.success()) {
+            return ResponseEntity.badRequest().body(result.message());
+        }
+        return ResponseEntity.ok("Logged out successfully");
     }
 }

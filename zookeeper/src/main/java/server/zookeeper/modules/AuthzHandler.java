@@ -16,6 +16,7 @@ import server.zookeeper.proto.permissions.UserPermissionsResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 import static java.util.Objects.requireNonNull;
 
@@ -46,7 +47,7 @@ public class AuthzHandler implements MessageHandler {
     }
 
     @Override
-    public Message handle(byte[] payload, boolean isMutation) {
+    public CompletableFuture<Message> handle(byte[] payload, boolean isMutation) {
         LOG.debug("Handling User Permission request, isMutation: {}", isMutation);
 
         try {
@@ -54,14 +55,17 @@ public class AuthzHandler implements MessageHandler {
             LOG.debug("Parsed UserPermissions request: operation={}", request.getRequestType());
 
             UserPermissionsResponse response = routeRequest(request);
-            return Message.valueOf(ByteString.copyFrom(response.toByteArray()));
+            return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(response.toByteArray())));
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse AuthRequest from payload", e);
-            return Message.valueOf(ByteString.copyFrom(createErrorResponse("Invalid request format: " + e.getMessage()).toByteArray()));
+            return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(
+                    createErrorResponse("Invalid request format: " + e.getMessage()).toByteArray())));
 
         } catch (Exception e) {
             LOG.error("Unexpected error handling auth request", e);
-            return Message.valueOf(ByteString.copyFrom(createErrorResponse("Internal server error: " + e.getMessage()).toByteArray()));
+            return CompletableFuture.completedFuture(
+                    Message.valueOf(ByteString.copyFrom(
+                            createErrorResponse("Internal server error: " + e.getMessage()).toByteArray())));
         }
     }
 

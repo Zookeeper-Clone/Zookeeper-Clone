@@ -307,6 +307,7 @@ export default function EditPage() {
           }
         } catch (error) {
           console.error("Error reading response:", error);
+          // If all else fails, use the default error message
         }
 
         setErrorMessage(errorMsg);
@@ -616,56 +617,42 @@ export default function EditPage() {
               </TableHead>
 
               <TableBody>
-                {cannedOperations.map((op, index) => {
-                  let canExecute = true;
-                  if (op.type === "write") {
-                    const opType = op.operationType || "create";
-                    canExecute =
-                      opType === "create" ? canCreate : canUpdate;
-                  } else if (op.type === "delete") {
-                    canExecute = canDelete;
-                  }
+                {cannedOperations.map((op, index) => (
+                  <TableRow key={op.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{op.key}</TableCell>
+                    <TableCell>{op.directory}</TableCell>
+                    <TableCell>{op.value}</TableCell>
+                    <TableCell>{op.type}</TableCell>
+                    <TableCell>
+                      {op.type === "write" ? op.operationType || "create" : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {op.type === "write"
+                        ? op.isEphemeral
+                          ? "Yes"
+                          : "No"
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outlined"
+                        sx={{ mr: 1 }}
+                        onClick={() => handleExecute(op)}
+                      >
+                        Execute
+                      </Button>
 
-                  return (
-                    <TableRow key={op.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{op.key}</TableCell>
-                      <TableCell>{op.directory}</TableCell>
-                      <TableCell>{op.value}</TableCell>
-                      <TableCell>{op.type}</TableCell>
-                      <TableCell>
-                        {op.type === "write"
-                          ? op.operationType || "create"
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {op.type === "write"
-                          ? op.isEphemeral
-                            ? "Yes"
-                            : "No"
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outlined"
-                          sx={{ mr: 1 }}
-                          onClick={() => handleExecute(op)}
-                          disabled={!canExecute}
-                        >
-                          Execute
-                        </Button>
-
-                        <Button
-                          variant="contained"
-                          color="error"
-                          onClick={() => deleteCannedOperation(op.id)}
-                        >
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                      <Button
+                        variant="contained"
+                        color="error"
+                        onClick={() => deleteCannedOperation(op.id)}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </TableContainer>

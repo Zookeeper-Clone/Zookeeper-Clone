@@ -63,7 +63,16 @@ function Home() {
     return true;
   });
   
-  const handleLogOut = () => {
+  const handleLogOut = async () => {
+    try {
+      await fetch('http://localhost:8080/auth/logout', {
+        method: 'POST',
+        credentials: 'include', // Include cookies
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+
     localStorage.removeItem('auth');
     localStorage.removeItem('token');
     sessionStorage.clear();

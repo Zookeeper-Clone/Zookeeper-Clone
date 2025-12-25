@@ -2,34 +2,54 @@ syntax = "proto3";
 
 package zookeeper.query;
 
-option java_package = "server.zookeeper.proto.query";
-option java_outer_classname = "QueryProto";
 option java_multiple_files = true;
+option java_outer_classname = "QueryProto";
+option java_package = "server.zookeeper.proto.query";
 
-message UserQuery{
-    QueryType query_type = 1;
+message UserQuery {
+  QueryType query_type = 1;
 
-    string key = 2;
+  string key = 2;
+
+  string value = 3;
+
+  string directory = 4;
+
+  string session_token = 5;
+
+  bool is_ephemeral = 6;
+}
+message QueryResponse {
+  bool success = 1;
+
+  string error_message = 2;
 
     string value = 3;
 
-    string directory = 4;
-
-    string session_token = 5;
+    WatchEvent watch_events = 4;
 }
-message QueryResponse{
-    bool success = 1;
-
-    string error_message = 2;
-
-    string value = 3;
-}
-enum QueryType{
+enum QueryType {
     GET = 0;
 
-    WRITE = 1;
+    CREATE = 1;
+
+    UPDATE = 2;
 
     DELETE = 3;
 
-    QUERY_TYPE_UNSPECIFIED = 4;
+    WATCH = 4;
+
+    QUERY_TYPE_UNSPECIFIED = 5;
+}
+
+message WatchEvent {
+    WatchEventType event_type = 1;
+    string key = 2;
+    string column_family = 3;
+}
+
+enum WatchEventType {
+    WATCH_EVENT_UNKNOWN = 0;
+    PUT_EVENT = 1;
+    DELETE_EVENT = 2;
 }

@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import server.zookeeper.DB.SessionRepository;
+import server.zookeeper.proto.session.EphemeralEntry;
 import server.zookeeper.proto.session.Session;
 
 import java.util.Optional;
@@ -23,12 +24,14 @@ class SessionManagerTest {
 
     @Mock
     private SessionRepository sessionRepository;
+    @Mock
+    private server.zookeeper.DB.DataBase db;
 
     private SessionManager sessionManager;
 
     @BeforeEach
     void setUp() {
-        sessionManager = new SessionManager(sessionRepository);
+        sessionManager = new SessionManager(sessionRepository, db);
     }
 
     @Test
@@ -120,5 +123,30 @@ class SessionManagerTest {
         ArgumentCaptor<Session> captor = ArgumentCaptor.forClass(Session.class);
         verify(sessionRepository).saveSession(captor.capture());
         assertTrue(captor.getValue().getLastHeartbeatTime() > oldTime);
+    }
+
+    @Test
+    @DisplayName("Should delete ephemeral entries when invalidating session")
+    void invalidateSession_deletesEphemeralEntries() {
+        String token = "tokenWithEphemeral";
+        String key = "ephemeralKey";
+        String dir = "temp";
+
+        EphemeralEntry entry = EphemeralEntry.newBuilder()
+                .setKey(key)
+                .setDirectory(dir)
+                .build();
+
+        Session session = Session.newBuilder()
+                .setSessionToken(token)
+                .addEphemeralEntries(entry)
+                .build();
+
+        when(sessionRepository.getSession(token)).thenReturn(Optional.of(session));
+
+        sessionManager.invalidateSession(token);
+
+        verify(db).delete(key.getBytes(), dir);
+        verify(sessionRepository).deleteSession(token);
     }
 }

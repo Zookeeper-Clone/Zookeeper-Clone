@@ -20,6 +20,6 @@ public class ZookeeperConfig {
     }
     @Bean
     public ZookeeperClient zookeeperClient(RaftClient raftClient){
-        return new ZookeeperClient(raftClient);
+        return new ZookeeperClient(raftClient, event -> {});
     }
 }
