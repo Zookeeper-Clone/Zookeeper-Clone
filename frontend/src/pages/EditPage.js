@@ -80,17 +80,10 @@ export default function EditPage() {
 
   useEffect(() => {
     console.log("=== useEffect running to load user data ===");
-    const userDataStr = localStorage.getItem("currentUser");
-    console.log("currentUser from localStorage in useEffect:", userDataStr);
-
-    if (!userDataStr) {
-      setIsAdmin(false);
-      setUserPermissions({});
-      return;
-    }
+    const permissions = localStorage.getItem('permissions')
 
     try {
-      const userData = JSON.parse(userDataStr);
+      const userData = JSON.parse(permissions);
       console.log("Parsed userData:", userData);
       console.log("Setting isAdmin to:", !!userData.admin);
       console.log("Setting userPermissions to:", userData.permissions || {});
