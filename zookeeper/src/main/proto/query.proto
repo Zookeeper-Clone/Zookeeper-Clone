@@ -29,17 +29,17 @@ message QueryResponse {
     WatchEvent watch_events = 4;
 }
 enum QueryType {
-  GET = 0;
+    GET = 0;
 
-  CREATE = 1;
+    CREATE = 1;
 
-  UPDATE = 2;
+    UPDATE = 2;
 
-    DELETE = 2;
+    DELETE = 3;
 
-    WATCH = 3;
+    WATCH = 4;
 
-    QUERY_TYPE_UNSPECIFIED = 4;
+    QUERY_TYPE_UNSPECIFIED = 5;
 }
 
 message WatchEvent {
