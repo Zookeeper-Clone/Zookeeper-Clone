@@ -18,6 +18,9 @@ enum MessageType {
   AUTH = 2;
 
   PERMISSIONS = 3;
+
+  // Metrics operations (server health and statistics)
+  METRICS = 4;
 }
 
 // Wrapper message to route different message types

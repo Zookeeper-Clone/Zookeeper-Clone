@@ -25,6 +25,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.concurrent.ExecutionException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthHandler Tests")
@@ -57,7 +58,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should successfully register new user")
-    void shouldSuccessfullyRegisterNewUser() throws InvalidProtocolBufferException {
+    void shouldSuccessfullyRegisterNewUser() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         when(authRepository.userExists(VALID_EMAIL)).thenReturn(false);
         when(passwordHasher.hashPassword(CURRENT_PASSWORD)).thenReturn(CURRENT_HASH);
 
@@ -67,7 +68,7 @@ class AuthHandlerTest {
                 .setPassword(CURRENT_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -83,7 +84,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail registration when user already exists")
-    void shouldFailRegistrationWhenUserAlreadyExists() throws InvalidProtocolBufferException {
+    void shouldFailRegistrationWhenUserAlreadyExists() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         when(authRepository.userExists(VALID_EMAIL)).thenReturn(true);
 
         AuthRequest request = AuthRequest.newBuilder()
@@ -92,7 +93,7 @@ class AuthHandlerTest {
                 .setPassword(CURRENT_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -105,14 +106,14 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail registration with invalid email")
-    void shouldFailRegistrationWithInvalidEmail() throws InvalidProtocolBufferException {
+    void shouldFailRegistrationWithInvalidEmail() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail("invalid-email")
                 .setPassword(CURRENT_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -124,14 +125,14 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail registration with short password")
-    void shouldFailRegistrationWithShortPassword() throws InvalidProtocolBufferException {
+    void shouldFailRegistrationWithShortPassword() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail(VALID_EMAIL)
                 .setPassword("pass1")
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -142,14 +143,14 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail registration with password missing letters")
-    void shouldFailRegistrationWithPasswordMissingLetters() throws InvalidProtocolBufferException {
+    void shouldFailRegistrationWithPasswordMissingLetters() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail(VALID_EMAIL)
                 .setPassword("12345678")
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -158,14 +159,14 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail registration with password missing digits")
-    void shouldFailRegistrationWithPasswordMissingDigits() throws InvalidProtocolBufferException {
+    void shouldFailRegistrationWithPasswordMissingDigits() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         AuthRequest request = AuthRequest.newBuilder()
                 .setOperation(AuthOperationType.REGISTER)
                 .setEmail(VALID_EMAIL)
                 .setPassword("abcdefgh")
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -178,7 +179,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should successfully login with valid credentials")
-    void shouldSuccessfullyLoginWithValidCredentials() throws InvalidProtocolBufferException {
+    void shouldSuccessfullyLoginWithValidCredentials() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserAuth userAuth = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
                 .setPasswordHash(CURRENT_HASH)
@@ -199,7 +200,7 @@ class AuthHandlerTest {
                 .setSessionToken(expectedToken) // simulate leader injecting the token
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), false);
+        Message response = authHandler.handle(request.toByteArray(), false).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -214,7 +215,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail login with non-existent user")
-    void shouldFailLoginWithNonExistentUser() throws InvalidProtocolBufferException {
+    void shouldFailLoginWithNonExistentUser() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
 
         AuthRequest request = AuthRequest.newBuilder()
@@ -223,7 +224,7 @@ class AuthHandlerTest {
                 .setPassword(CURRENT_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), false);
+        Message response = authHandler.handle(request.toByteArray(), false).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -235,7 +236,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail login with incorrect password")
-    void shouldFailLoginWithIncorrectPassword() throws InvalidProtocolBufferException {
+    void shouldFailLoginWithIncorrectPassword() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserAuth userAuth = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
                 .setPasswordHash(CURRENT_HASH)
@@ -250,7 +251,7 @@ class AuthHandlerTest {
                 .setPassword(CURRENT_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), false);
+        Message response = authHandler.handle(request.toByteArray(), false).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -261,7 +262,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should successfully change password with valid credentials")
-    void shouldSuccessfullyChangePassword() throws InvalidProtocolBufferException {
+    void shouldSuccessfullyChangePassword() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserAuth existingUser = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
                 .setPasswordHash(CURRENT_HASH)
@@ -281,7 +282,7 @@ class AuthHandlerTest {
                 .setNewPassword(NEW_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -300,7 +301,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail when user does not exist")
-    void shouldFailWhenUserDoesNotExist() throws InvalidProtocolBufferException {
+    void shouldFailWhenUserDoesNotExist() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         when(authRepository.getUserByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
 
         AuthRequest request = AuthRequest.newBuilder()
@@ -310,7 +311,7 @@ class AuthHandlerTest {
                 .setNewPassword(NEW_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -321,7 +322,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail when current password is incorrect")
-    void shouldFailWhenCurrentPasswordIsIncorrect() throws InvalidProtocolBufferException {
+    void shouldFailWhenCurrentPasswordIsIncorrect() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserAuth existingUser = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
                 .setPasswordHash(CURRENT_HASH)
@@ -337,7 +338,7 @@ class AuthHandlerTest {
                 .setNewPassword(NEW_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -349,7 +350,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail when new password is same as current password")
-    void shouldFailWhenNewPasswordIsSameAsCurrent() throws InvalidProtocolBufferException {
+    void shouldFailWhenNewPasswordIsSameAsCurrent() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         UserAuth existingUser = UserAuth.newBuilder()
                 .setEmail(VALID_EMAIL)
                 .setPasswordHash(CURRENT_HASH)
@@ -366,7 +367,7 @@ class AuthHandlerTest {
                 .setNewPassword(NEW_PASSWORD)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -397,7 +398,7 @@ class AuthHandlerTest {
                 .setGoogleToken(tokenString)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -425,7 +426,7 @@ class AuthHandlerTest {
                 .setGoogleToken(tokenString)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -446,7 +447,7 @@ class AuthHandlerTest {
                 .setGoogleToken(invalidToken)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -472,7 +473,7 @@ class AuthHandlerTest {
                 .setGoogleToken(tokenString)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -510,7 +511,7 @@ class AuthHandlerTest {
                 .build();
 
         when(sessionManager.createSession(eq(VALID_EMAIL), eq(expectedToken))).thenReturn(expectedToken);
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -536,7 +537,7 @@ class AuthHandlerTest {
                 .setGoogleToken(tokenString)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -557,7 +558,7 @@ class AuthHandlerTest {
                 .setGoogleToken(invalidToken)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), true);
+        Message response = authHandler.handle(request.toByteArray(), true).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());
@@ -570,7 +571,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should successfully handle heartbeat for valid session")
-    void shouldHandleHeartbeatSuccess() throws InvalidProtocolBufferException {
+    void shouldHandleHeartbeatSuccess() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         String token = "valid-token";
         when(sessionManager.validateSession(token)).thenReturn(true);
 
@@ -579,7 +580,7 @@ class AuthHandlerTest {
                 .setSessionToken(token)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), false);
+        Message response = authHandler.handle(request.toByteArray(), false).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertTrue(authResponse.getSuccess());
@@ -588,7 +589,7 @@ class AuthHandlerTest {
 
     @Test
     @DisplayName("Should fail heartbeat for invalid session")
-    void shouldFailHeartbeatInvalidSession() throws InvalidProtocolBufferException {
+    void shouldFailHeartbeatInvalidSession() throws InvalidProtocolBufferException, ExecutionException, InterruptedException {
         String token = "invalid-token";
         when(sessionManager.validateSession(token)).thenReturn(false);
 
@@ -597,7 +598,7 @@ class AuthHandlerTest {
                 .setSessionToken(token)
                 .build();
 
-        Message response = authHandler.handle(request.toByteArray(), false);
+        Message response = authHandler.handle(request.toByteArray(), false).get();
         AuthResponse authResponse = AuthResponse.parseFrom(response.getContent().toByteArray());
 
         assertFalse(authResponse.getSuccess());

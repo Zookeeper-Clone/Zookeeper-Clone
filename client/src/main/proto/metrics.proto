@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option java_outer_classname = "MetricsProto";
+option java_package = "server.zookeeper.proto.metrics";
+
+// Response containing all metrics
+message MetricsResponse {
+  bool success = 1;
+  string errorMessage = 2;
+
+  // Priority metrics
+  int64 electionCount = 3;
+  int64 timeoutCount = 4;
+  int64 clientReadRequests = 6;
+  int64 clientWriteRequests = 7;
+  int64 numPendingRequestsInQueue = 8;
+  int64 numFailedClientReadOnServer = 10;
+  
+  // Latency metrics
+  double appendEntryLatency = 11;
+}

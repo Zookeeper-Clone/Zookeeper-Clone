@@ -27,27 +27,25 @@ public class MetricsService {
         this.zookeeperClient = zookeeperClient;
     }
 
-    /**
-     * Collect metrics for dashboard
-     */
     public Map<String, Object> collectMetrics() {
         Map<String, Object> response = new HashMap<>();
         RaftClient raftClient = zookeeperClient.getRaftClient();
+        ZookeeperClient.MetricsResult metricsResult = zookeeperClient.getMetrics();
 
         // --- Raft metrics (placeholders) ---
         Map<String, Object> raftMap = new HashMap<>();
-        raftMap.put("term", "N/A");
-        raftMap.put("role", "N/A");
-        raftMap.put("log.appliedIndex", "N/A");
-        raftMap.put("log.commitIndex", "N/A");
-        raftMap.put("log.lastIndex", "N/A");
-        raftMap.put("appendEntry.latencyMs", "N/A");
-        raftMap.put("heartbeat.latencyMs", "N/A");
+        if (metricsResult != null && metricsResult.isSuccess()) {
+            raftMap.put("appendEntry.latencyMs", metricsResult.getAppendEntryLatency());
+            raftMap.put("electionCount", metricsResult.getElectionCount());
+            raftMap.put("timeoutCount", metricsResult.getTimeoutCount());
+            raftMap.put("numPendingRequestsInQueue", metricsResult.getNumPendingRequestsInQueue());
+        } else {
+            raftMap.put("appendEntry.latencyMs", "N/A");
+        }
         raftMap.put("success", successCount);
         raftMap.put("failure", failCount);
         response.put("raft", raftMap);
 
-        // --- Cluster Info ---
         try {
             var leaderId = raftClient.getLeaderId();
             response.put("leader", leaderId != null ? leaderId.toString() : "unknown");
@@ -75,14 +73,40 @@ public class MetricsService {
 
         response.put("client", clientStats);
 
+        // --- Zookeeper Server metrics ---
+        if (metricsResult != null && metricsResult.isSuccess()) {
+            Map<String, Object> zkMap = new HashMap<>();
+            zkMap.put("clientReadRequests", metricsResult.getClientReadRequests());
+            zkMap.put("clientWriteRequests", metricsResult.getClientWriteRequests());
+            zkMap.put("numFailedClientReadOnServer", metricsResult.getNumFailedClientReadOnServer());
+            response.put("zookeeper", zkMap);
+        }
+
         return response;
     }
 
     // --- Methods to update metrics ---
-    public void recordRequest() { totalRequests++; }
-    public void recordNotLeader() { notLeaderHits++; }
-    public void recordRetry() { retryCount++; }
-    public void recordSuccess() { successCount++; }
-    public void recordFail() { failCount++; }
-    public void recordLatency(long latencyMs) { totalLatencyMs += latencyMs; }
+    public void recordRequest() {
+        totalRequests++;
+    }
+
+    public void recordNotLeader() {
+        notLeaderHits++;
+    }
+
+    public void recordRetry() {
+        retryCount++;
+    }
+
+    public void recordSuccess() {
+        successCount++;
+    }
+
+    public void recordFail() {
+        failCount++;
+    }
+
+    public void recordLatency(long latencyMs) {
+        totalLatencyMs += latencyMs;
+    }
 }

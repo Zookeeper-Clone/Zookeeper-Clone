@@ -14,6 +14,7 @@ import server.zookeeper.proto.auth.AuthRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class MessageRouter {
     private static final Logger LOG = LoggerFactory.getLogger(MessageRouter.class);
@@ -47,12 +48,12 @@ public class MessageRouter {
 
     }
 
-    public Message route(byte[] payload, boolean isMutation) {
+    public CompletableFuture<Message> route(byte[] payload, boolean isMutation) {
         try {
             return routeMessage(payload, isMutation);
         } catch (Exception e) {
             LOG.error("Error routing message", e);
-            return createErrorResponse("Failed to route message: " + e.getMessage());
+            return CompletableFuture.completedFuture(createErrorResponse("Failed to route message: " + e.getMessage()));
         }
     }
 
@@ -69,7 +70,7 @@ public class MessageRouter {
         }
     }
 
-    private Message routeMessage(byte[] payload, boolean isMutation) {
+    private CompletableFuture<Message> routeMessage(byte[] payload, boolean isMutation) {
         try {
             // Parse the MessageWrapper
             MessageWrapper wrapper = MessageWrapper.parseFrom(payload);
@@ -80,7 +81,7 @@ public class MessageRouter {
             if (requiresAuthentication(messageType)) {
                 if (!sessionManager.validateSession(sessionToken)) {
                     LOG.warn("Unauthorized access attempt. Type: {}", messageType);
-                    return createErrorResponse("Unauthorized: Invalid or expired session");
+                    return CompletableFuture.completedFuture(createErrorResponse("Unauthorized: Invalid or expired session"));
                 }
             }
             LOG.debug("Routing wrapped message of type: {}", messageType);
@@ -89,19 +90,20 @@ public class MessageRouter {
 
             if (handler == null) {
                 LOG.warn("No handler registered for message type: {}", messageType);
-                return createErrorResponse("No handler for message type: " + messageType);
+                return CompletableFuture.completedFuture(createErrorResponse("No handler for message type: " + messageType));
             }
             LOG.debug("routeMessage - routing to {}", handler.getHandlerType());
             return handler.handle(innerPayload, isMutation);
 
         } catch (InvalidProtocolBufferException e) {
             LOG.error("Failed to parse MessageWrapper", e);
-            return createErrorResponse("Invalid protobuf message: " + e.getMessage());
+            return CompletableFuture.completedFuture(createErrorResponse("Invalid protobuf message: " + e.getMessage()));
         }
     }
 
     private boolean requiresAuthentication(MessageType type) {
         switch (type) {
+            case METRICS:
             case QUERY:
                 return true;
             case AUTH:

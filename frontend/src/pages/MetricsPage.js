@@ -64,12 +64,6 @@ export default function RatisMetricsDashboard() {
                   <strong>Leader:</strong> {data.leader}
                 </Typography>
                 <Typography>
-                  <strong>Term:</strong> {data.raft.term}
-                </Typography>
-                <Typography>
-                  <strong>Role:</strong> {data.raft.role}
-                </Typography>
-                <Typography>
                   <strong>Group ID:</strong> {data.groupId}
                 </Typography>
                 <Typography>
@@ -89,21 +83,20 @@ export default function RatisMetricsDashboard() {
               </Typography>
               <Stack spacing={1}>
                 <Typography>
-                  <strong>Applied Index:</strong> {data.raft["log.appliedIndex"]}
+                  <strong>AppendEntry Latency:</strong>{" "}
+                  {data.raft["appendEntry.latencyMs"]} ms
                 </Typography>
                 <Typography>
-                  <strong>Commit Index:</strong> {data.raft["log.commitIndex"]}
+                  <strong>Election Count:</strong> {data.raft.electionCount}
                 </Typography>
                 <Typography>
-                  <strong>Last Index:</strong> {data.raft["log.lastIndex"]}
+                  <strong>Timeout Count:</strong> {data.raft.timeoutCount}
+                </Typography>
+                <Typography>
+                  <strong>Pending Requests:</strong>{" "}
+                  {data.raft.numPendingRequestsInQueue}
                 </Typography>
                 <Box mt={2}>
-                  <Typography>
-                    <strong>AppendEntry Latency:</strong> {data.raft["appendEntry.latencyMs"]} ms
-                  </Typography>
-                  <Typography>
-                    <strong>Heartbeat Latency:</strong> {data.raft["heartbeat.latencyMs"]} ms
-                  </Typography>
                   <Typography>
                     <strong>Success:</strong> {data.raft.success}
                   </Typography>
@@ -125,17 +118,41 @@ export default function RatisMetricsDashboard() {
           </Typography>
           <Grid container spacing={2} mb={3}>
             {[
-              { label: "Total Requests", value: data.client.totalRequests, color: "primary.main" },
-              { label: "NotLeader Hits", value: data.client.notLeaderHits, color: "warning.main" },
-              { label: "Retry Count", value: data.client.retryCount, color: "purple" },
-              { label: "Success Count", value: data.client.successCount, color: "success.main" },
-              { label: "Fail Count", value: data.client.failCount, color: "error.main" },
+              {
+                label: "Total Requests",
+                value: data.client.totalRequests,
+                color: "primary.main",
+              },
+              {
+                label: "NotLeader Hits",
+                value: data.client.notLeaderHits,
+                color: "warning.main",
+              },
+              {
+                label: "Retry Count",
+                value: data.client.retryCount,
+                color: "purple",
+              },
+              {
+                label: "Success Count",
+                value: data.client.successCount,
+                color: "success.main",
+              },
+              {
+                label: "Fail Count",
+                value: data.client.failCount,
+                color: "error.main",
+              },
             ].map((item) => (
               <Grid item xs={12} md={2.4} key={item.label}>
                 <Card sx={{ textAlign: "center" }}>
                   <CardContent>
                     <Typography>{item.label}</Typography>
-                    <Typography variant="h5" fontWeight="bold" color={item.color}>
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color={item.color}
+                    >
                       {item.value}
                     </Typography>
                   </CardContent>
@@ -203,43 +220,67 @@ export default function RatisMetricsDashboard() {
               value={Math.min(safeNumber(data.client.avgLatencyMs) * 2, 100)}
               sx={{ height: 12, borderRadius: 6 }}
             />
-            <Typography variant="caption">{data.client.avgLatencyMs} ms</Typography>
+            <Typography variant="caption">
+              {data.client.avgLatencyMs} ms
+            </Typography>
           </Box>
         </CardContent>
       </Card>
 
-      {/* Log Index Status */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Log Index Status
-          </Typography>
-          <Grid container spacing={2} alignItems="flex-end">
-            {[
-              { label: "Commit", value: data.raft["log.commitIndex"], color: "info.main" },
-              { label: "Applied", value: data.raft["log.appliedIndex"], color: "success.main" },
-              { label: "Last", value: data.raft["log.lastIndex"], color: "error.main" },
-            ].map((item) => (
-              <Grid item xs={12} md={4} key={item.label}>
-                <Box textAlign="center">
-                  <Box
-                    sx={{
-                      height: safeNumber(item.value)
-                        ? 200 * (safeNumber(item.value) / (safeNumber(data.raft["log.lastIndex"]) || 1))
-                        : 50,
-                      bgcolor: item.color,
-                      borderRadius: 1,
-                      mb: 1,
-                    }}
-                  />
-                  <Typography variant="subtitle2">{item.label}</Typography>
-                  <Typography variant="caption">{item.value}</Typography>
-                </Box>
+      {/* Zookeeper Server Metrics */}
+      {data.zookeeper && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Zookeeper Server Metrics
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <Card sx={{ textAlign: "center" }}>
+                  <CardContent>
+                    <Typography>Client Read Requests</Typography>
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="info.main"
+                    >
+                      {data.zookeeper.clientReadRequests}
+                    </Typography>
+                  </CardContent>
+                </Card>
               </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
+              <Grid item xs={12} md={4}>
+                <Card sx={{ textAlign: "center" }}>
+                  <CardContent>
+                    <Typography>Client Write Requests</Typography>
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="success.main"
+                    >
+                      {data.zookeeper.clientWriteRequests}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Card sx={{ textAlign: "center" }}>
+                  <CardContent>
+                    <Typography>Failed Read Requests</Typography>
+                    <Typography
+                      variant="h5"
+                      fontWeight="bold"
+                      color="error.main"
+                    >
+                      {data.zookeeper.numFailedClientReadOnServer}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
     </Box>
   );
 }

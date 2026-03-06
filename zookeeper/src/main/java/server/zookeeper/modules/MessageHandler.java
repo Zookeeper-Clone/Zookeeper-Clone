@@ -2,6 +2,8 @@ package server.zookeeper.modules;
 
 import org.apache.ratis.protocol.Message;
 
+import java.util.concurrent.CompletableFuture;
+
 public interface MessageHandler {
 
     /**
@@ -10,7 +12,7 @@ public interface MessageHandler {
      * @return the response message
      * @throws RuntimeException if the message cannot be handled
      */
-    Message handle(byte[] payload, boolean isMutation);
+    CompletableFuture<Message> handle(byte[] payload, boolean isMutation);
 
     /**
      * Gets the message type this handler supports.

@@ -1,8 +1,10 @@
 package client.zookeeper;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.ratis.client.RaftClient;
+import org.apache.ratis.client.RaftClientConfigKeys;
 import org.apache.ratis.conf.Parameters;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcFactory;
@@ -10,6 +12,7 @@ import org.apache.ratis.protocol.ClientId;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
+import org.apache.ratis.util.TimeDuration;
 
 public class RaftClientBuilder {
 
@@ -28,7 +31,7 @@ public class RaftClientBuilder {
         return this;
     }
 
-    public RaftClient build(){
+    public RaftClient build() {
         // Build peers array
         RaftPeer[] peers = new RaftPeer[ids.length];
         for (int i = 0; i < ids.length; i++) {
@@ -42,8 +45,15 @@ public class RaftClientBuilder {
         RaftGroupId raftGroupId = RaftGroupId.valueOf(UUID.fromString(groupId));
         RaftGroup raftGroup = RaftGroup.valueOf(raftGroupId, peers);
 
-        // Properties + RPC
+        // Properties + RPC Configuration
         RaftProperties properties = new RaftProperties();
+
+        // CRITICAL: Increase timeout for Watch requests.
+        // Watches are long-polling operations. If the server doesn't respond because no change
+        // has occurred, the client will timeout after 3s by default.
+        // We set this to a high value (e.g., 2 hours) to keep the connection alive.
+        RaftClientConfigKeys.Rpc.setRequestTimeout(properties, TimeDuration.valueOf(2, TimeUnit.HOURS));
+
         ClientId clientId = ClientId.randomId();
         GrpcFactory grpcFactory = new GrpcFactory(new Parameters());
 
