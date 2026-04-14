@@ -219,15 +219,6 @@ A production-grade distributed system must expect failure. This implementation i
 
 ---
 
-## 🧪 Engineering Rigor (Testing)
-
-Reliability in distributed systems is achieved through exhaustive testing. This project emphasizes a deterministic testing strategy:
-
-*   **State Machine Verification**: The `KVStateMachine` (the core logic) is verified using **JUnit 5** and **Mockito**. We simulate complex distributed scenarios, such as SSL/Transport failures and malformed RPC packets, to ensure the state machine remains robust.
-*   **Conflict Resolution**: Automated tests verify that during a partition, nodes correctly reject stale logs from a lower term and synchronize with the authoritative Leader once connectivity is restored.
-
----
-
 ## 🗺️ Future Roadmap
 
 This project is under active evolution with the following architectural goals:
