@@ -259,8 +259,8 @@ public class IntegrationTest {
         try (ZookeeperClient ephemeralClient = new ZookeeperClient(ephemeralRaftClient, event -> {})) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
-            // Grant admin permissions to bypass authorization checks
-            ephemeralClient.setIsAdmin("ephemeral@user.com", true);
+            // Main client (admin) grants permissions to ephemeral user
+            client.setIsAdmin("ephemeral@user.com", true);
             String key = namespaced("ephemeralKey");
             String value = "temporary";
 

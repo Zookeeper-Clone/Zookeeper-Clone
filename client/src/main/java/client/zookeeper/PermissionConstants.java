@@ -1,7 +1,7 @@
-package server.zookeeper.util;
+package client.zookeeper;
 
 /**
- * Permission bitmask constants for directory access control.
+ * Permission bitmask constants for directory access control in the client SDK.
  * 
  * Permissions are stored as an integer bitmask where:
  * - CREATE = 1 (0001)
@@ -9,10 +9,11 @@ package server.zookeeper.util;
  * - UPDATE = 4 (0100)
  * - DELETE = 8 (1000)
  * 
- * Examples:
+ * Presets:
  * - READ_ONLY (2): Can only read existing entries.
- * - MODIFY_ONLY (6 = READ | UPDATE): Can read and update existing entries, but cannot add new entries or delete.
- * - READ_WRITE (7 = CREATE | READ | UPDATE): Can create, read, and update, but cannot delete.
+ * - MODIFY_ONLY (6 = READ | UPDATE): Can read and update existing entries without creating new ones or deleting.
+ * - CREATE_AND_READ (3 = CREATE | READ): Can read and create new entries without updating or deleting.
+ * - READ_WRITE (7 = CREATE | READ | UPDATE): Can create, read, and update without delete.
  * - FULL_ACCESS (15 = CREATE | READ | UPDATE | DELETE): Full CRUD access.
  */
 public final class PermissionConstants {
@@ -42,13 +43,6 @@ public final class PermissionConstants {
     /** Full CRUD access */
     public static final int FULL_ACCESS = CREATE | READ | UPDATE | DELETE;
     
-    /**
-     * Check if a permission bitmask contains the required permission.
-     * 
-     * @param permissionMask the user's permission bitmask for a directory
-     * @param requiredPermission the required permission (CREATE, READ, UPDATE, or DELETE)
-     * @return true if the user has the required permission
-     */
     public static boolean hasPermission(int permissionMask, int requiredPermission) {
         return (permissionMask & requiredPermission) == requiredPermission;
     }

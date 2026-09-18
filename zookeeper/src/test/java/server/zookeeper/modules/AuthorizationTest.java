@@ -9,6 +9,10 @@ import server.zookeeper.DB.AuthRepository;
 import server.zookeeper.DB.DataBase;
 import server.zookeeper.DB.SessionRepository;
 import server.zookeeper.proto.auth.UserAuth;
+import server.zookeeper.proto.permissions.RequestType;
+import server.zookeeper.proto.permissions.UserPermissions;
+import server.zookeeper.proto.permissions.UserPermissionsRequest;
+import server.zookeeper.proto.permissions.UserPermissionsResponse;
 import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
@@ -162,6 +166,52 @@ public class AuthorizationTest {
     }
 
     @Test
+    @DisplayName("3b. User with MODIFY_ONLY permission can read and update but cannot create or delete")
+    public void testUserWithModifyOnlyPermission() {
+        Map<String, Integer> permissions = new HashMap<>();
+        // MODIFY_ONLY = READ | UPDATE (6) - can modify existing entries without adding new entries
+        permissions.put(TEST_DIRECTORY, PermissionConstants.MODIFY_ONLY);
+
+        when(mockSessionRepository.getSession(VALID_TOKEN))
+                .thenReturn(Optional.of(createSession(VALID_TOKEN, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, permissions)));
+
+        AuthzHandler.AuthorizationResult readResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.READ);
+        AuthzHandler.AuthorizationResult createResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.CREATE);
+        AuthzHandler.AuthorizationResult updateResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.UPDATE);
+        AuthzHandler.AuthorizationResult deleteResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.DELETE);
+
+        assertTrue(readResult.isAuthorized(), "User with MODIFY_ONLY should have READ access");
+        assertTrue(updateResult.isAuthorized(), "User with MODIFY_ONLY should have UPDATE access");
+        assertFalse(createResult.isAuthorized(), "User with MODIFY_ONLY should NOT have CREATE access (cannot add new entries)");
+        assertFalse(deleteResult.isAuthorized(), "User with MODIFY_ONLY should NOT have DELETE access");
+    }
+
+    @Test
+    @DisplayName("3c. User with READ_WRITE permission can create, read, update but cannot delete")
+    public void testUserWithReadWriteWithoutDelete() {
+        Map<String, Integer> permissions = new HashMap<>();
+        // READ_WRITE = CREATE | READ | UPDATE (7)
+        permissions.put(TEST_DIRECTORY, PermissionConstants.READ_WRITE);
+
+        when(mockSessionRepository.getSession(VALID_TOKEN))
+                .thenReturn(Optional.of(createSession(VALID_TOKEN, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, permissions)));
+
+        AuthzHandler.AuthorizationResult readResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.READ);
+        AuthzHandler.AuthorizationResult createResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.CREATE);
+        AuthzHandler.AuthorizationResult updateResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.UPDATE);
+        AuthzHandler.AuthorizationResult deleteResult = authzHandler.checkPermission(VALID_TOKEN, TEST_DIRECTORY, PermissionConstants.DELETE);
+
+        assertTrue(readResult.isAuthorized(), "User should have READ access");
+        assertTrue(createResult.isAuthorized(), "User should have CREATE access");
+        assertTrue(updateResult.isAuthorized(), "User should have UPDATE access");
+        assertFalse(deleteResult.isAuthorized(), "User should NOT have DELETE access");
+    }
+
+    @Test
     @DisplayName("4. Invalid session token returns Unauthorized")
     public void testInvalidSessionTokenReturnsUnauthorized() {
         when(mockSessionRepository.getSession(INVALID_TOKEN))
@@ -267,5 +317,133 @@ public class AuthorizationTest {
         assertTrue(response.getErrorMessage().contains("Forbidden") || 
                    response.getErrorMessage().contains("No permission"),
                    "Error should indicate permission denied");
+    }
+
+    @Test
+    @DisplayName("11. Admin caller can set admin status")
+    public void testAdminCallerCanSetAdmin() {
+        String adminToken = "admin-token-123";
+        String targetUser = "target@example.com";
+
+        when(mockSessionRepository.getSession(adminToken))
+                .thenReturn(Optional.of(createSession(adminToken, ADMIN_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(ADMIN_EMAIL))
+                .thenReturn(Optional.of(createUser(ADMIN_EMAIL, true, null)));
+        when(mockAuthRepository.getUserByEmail(targetUser))
+                .thenReturn(Optional.of(createUser(targetUser, false, null)));
+
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_IS_ADMIN)
+                .setUserEmail(targetUser)
+                .setToken(adminToken)
+                .setUserPermissions(UserPermissions.newBuilder()
+                        .setIsAdmin(true)
+                        .build())
+                .build();
+
+        UserPermissionsResponse response = authzHandler.setIsAdmin(request);
+
+        assertTrue(response.getSuccess());
+        assertTrue(response.getUserPermissions().getIsAdmin());
+        verify(mockAuthRepository).updateUser(argThat(UserAuth::getIsAdmin));
+    }
+
+    @Test
+    @DisplayName("12. Non-admin caller cannot set admin status")
+    public void testNonAdminCallerCannotSetAdmin() {
+        String userToken = "user-token-123";
+        String targetUser = "target@example.com";
+
+        when(mockSessionRepository.getSession(userToken))
+                .thenReturn(Optional.of(createSession(userToken, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, null)));
+
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_IS_ADMIN)
+                .setUserEmail(targetUser)
+                .setToken(userToken)
+                .setUserPermissions(UserPermissions.newBuilder()
+                        .setIsAdmin(true)
+                        .build())
+                .build();
+
+        UserPermissionsResponse response = authzHandler.setIsAdmin(request);
+
+        assertFalse(response.getSuccess());
+        assertTrue(response.getErrorMessage().contains("Admin privileges required"));
+        verify(mockAuthRepository, never()).updateUser(any());
+    }
+
+    @Test
+    @DisplayName("13. Non-admin caller cannot set directory permissions")
+    public void testNonAdminCallerCannotSetDirectoryPermissions() {
+        String userToken = "user-token-123";
+        String targetUser = "target@example.com";
+
+        when(mockSessionRepository.getSession(userToken))
+                .thenReturn(Optional.of(createSession(userToken, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, null)));
+
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_DIRECTORY_PERMISSIONS)
+                .setUserEmail(targetUser)
+                .setToken(userToken)
+                .setUserPermissions(UserPermissions.newBuilder()
+                        .putDirectoryPermissions(TEST_DIRECTORY, PermissionConstants.FULL_ACCESS)
+                        .build())
+                .build();
+
+        UserPermissionsResponse response = authzHandler.setDirectoriesPermissions(request);
+
+        assertFalse(response.getSuccess());
+        assertTrue(response.getErrorMessage().contains("Admin privileges required"));
+        verify(mockAuthRepository, never()).updateUser(any());
+    }
+
+    @Test
+    @DisplayName("14. User can view their own permissions")
+    public void testUserCanViewOwnPermissions() {
+        String userToken = "user-token-123";
+
+        when(mockSessionRepository.getSession(userToken))
+                .thenReturn(Optional.of(createSession(userToken, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, Map.of(TEST_DIRECTORY, 3))));
+
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.GET)
+                .setUserEmail(TEST_USER_EMAIL)
+                .setToken(userToken)
+                .build();
+
+        UserPermissionsResponse response = authzHandler.getUserPermissionsByEmail(request);
+
+        assertTrue(response.getSuccess());
+        assertEquals(3, response.getUserPermissions().getDirectoryPermissionsMap().get(TEST_DIRECTORY));
+    }
+
+    @Test
+    @DisplayName("15. Non-admin cannot view other users permissions")
+    public void testNonAdminCannotViewOtherUserPermissions() {
+        String userToken = "user-token-123";
+        String otherUser = "other@example.com";
+
+        when(mockSessionRepository.getSession(userToken))
+                .thenReturn(Optional.of(createSession(userToken, TEST_USER_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, null)));
+
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.GET)
+                .setUserEmail(otherUser)
+                .setToken(userToken)
+                .build();
+
+        UserPermissionsResponse response = authzHandler.getUserPermissionsByEmail(request);
+
+        assertFalse(response.getSuccess());
+        assertTrue(response.getErrorMessage().contains("Forbidden") || response.getErrorMessage().contains("Insufficient permissions"));
     }
 }
