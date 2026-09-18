@@ -12,6 +12,8 @@ import server.zookeeper.proto.permissions.RequestType;
 import server.zookeeper.proto.permissions.UserPermissions;
 import server.zookeeper.proto.permissions.UserPermissionsRequest;
 import server.zookeeper.proto.permissions.UserPermissionsResponse;
+import server.zookeeper.proto.session.Session;
+import server.zookeeper.util.PermissionConstants;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -77,7 +79,7 @@ public class AuthzHandler implements MessageHandler {
             return createErrorResponse("Invalid operation type");
         }
 
-        AuthzHandler.UserPermissionHandler handler = handlers.get(operation);
+        UserPermissionHandler handler = handlers.get(operation);
 
         if (handler == null) {
             LOG.warn("No handler registered for operation: {}", operation);
@@ -115,17 +117,53 @@ public class AuthzHandler implements MessageHandler {
     }
 
     public Optional<UserPermissions> getUserPermissionsByToken(String token) {
-        return Optional.empty();
+        if (token == null || token.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<Session> sessionOpt = sessionRepository.getSession(token);
+        if (sessionOpt.isEmpty() || !sessionOpt.get().getIsValid()) {
+            return Optional.empty();
+        }
+        String userEmail = sessionOpt.get().getUserEmail();
+        return authRepository.getUserByEmail(userEmail).map(user -> UserPermissions.newBuilder()
+                .setIsAdmin(user.getIsAdmin())
+                .setCanCreateDirectories(user.getCanCreateDirectories())
+                .putAllDirectoryPermissions(user.getPermissionsMap())
+                .build());
     }
 
     public UserPermissionsResponse getUserPermissionsByEmail(UserPermissionsRequest request) {
-        String userEmail = request.getUserEmail();
+        String targetEmail = request.getUserEmail();
+        String sessionToken = request.getToken();
 
-        Optional<UserAuth> user = authRepository.getUserByEmail(userEmail);
-        return user.map(AuthzHandler::getSuccessUserPermissionsResponse).orElseGet(() -> getFailedUserPermissionsResponse(userEmail));
+        // Validate caller: caller must be authenticated and must be an admin OR querying their own permissions
+        if (sessionToken != null && !sessionToken.isEmpty()) {
+            Optional<Session> sessionOpt = sessionRepository.getSession(sessionToken);
+            if (sessionOpt.isPresent() && sessionOpt.get().getIsValid()) {
+                String callerEmail = sessionOpt.get().getUserEmail();
+                Optional<UserAuth> callerOpt = authRepository.getUserByEmail(callerEmail);
+                if (callerOpt.isPresent()) {
+                    UserAuth caller = callerOpt.get();
+                    if (caller.getIsAdmin() || callerEmail.equalsIgnoreCase(targetEmail)) {
+                        Optional<UserAuth> targetUser = authRepository.getUserByEmail(targetEmail);
+                        return targetUser.map(AuthzHandler::getSuccessUserPermissionsResponse)
+                                .orElseGet(() -> getFailedUserPermissionsResponse(targetEmail));
+                    }
+                    LOG.warn("User {} attempted to view permissions of {} without admin rights", callerEmail, targetEmail);
+                    return createErrorResponse("Forbidden: Insufficient permissions to view other users' permissions");
+                }
+            }
+        }
+
+        return createErrorResponse("Unauthorized: Valid session token required");
     }
 
     public UserPermissionsResponse setIsAdmin(UserPermissionsRequest request) {
+        AuthorizationResult authCheck = validateAdminCaller(request.getToken());
+        if (!authCheck.isAuthorized()) {
+            return createErrorResponse(authCheck.getErrorMessage());
+        }
+
         String userEmail = request.getUserEmail();
         boolean isAdmin = request.getUserPermissions().getIsAdmin();
 
@@ -142,6 +180,11 @@ public class AuthzHandler implements MessageHandler {
     }
 
     public UserPermissionsResponse setCanCreateDirectories(UserPermissionsRequest request) {
+        AuthorizationResult authCheck = validateAdminCaller(request.getToken());
+        if (!authCheck.isAuthorized()) {
+            return createErrorResponse(authCheck.getErrorMessage());
+        }
+
         String userEmail = request.getUserEmail();
         boolean canCreateDirectories = request.getUserPermissions().getCanCreateDirectories();
 
@@ -158,6 +201,11 @@ public class AuthzHandler implements MessageHandler {
     }
 
     public UserPermissionsResponse setDirectoriesPermissions(UserPermissionsRequest request) {
+        AuthorizationResult authCheck = validateAdminCaller(request.getToken());
+        if (!authCheck.isAuthorized()) {
+            return createErrorResponse(authCheck.getErrorMessage());
+        }
+
         String userEmail = request.getUserEmail();
         Map<String, Integer> directoriesPermissions = request.getUserPermissions().getDirectoryPermissionsMap();
 
@@ -171,6 +219,37 @@ public class AuthzHandler implements MessageHandler {
         authRepository.updateUser(user);
 
         return getSuccessUserPermissionsResponse(user);
+    }
+
+    /**
+     * Verify that the provided session token belongs to an active administrator.
+     */
+    private AuthorizationResult validateAdminCaller(String sessionToken) {
+        if (sessionToken == null || sessionToken.isEmpty()) {
+            return AuthorizationResult.unauthorized("No session token provided");
+        }
+
+        Optional<Session> sessionOpt = sessionRepository.getSession(sessionToken);
+        if (sessionOpt.isEmpty() || !sessionOpt.get().getIsValid()) {
+            return AuthorizationResult.unauthorized("Invalid or expired session");
+        }
+
+        String callerEmail = sessionOpt.get().getUserEmail();
+        if (callerEmail == null || callerEmail.isEmpty()) {
+            return AuthorizationResult.unauthorized("Session has no associated user");
+        }
+
+        Optional<UserAuth> userOpt = authRepository.getUserByEmail(callerEmail);
+        if (userOpt.isEmpty()) {
+            return AuthorizationResult.unauthorized("User not found");
+        }
+
+        if (!userOpt.get().getIsAdmin()) {
+            LOG.warn("Non-admin user {} attempted administrative action", callerEmail);
+            return AuthorizationResult.forbidden("Admin privileges required");
+        }
+
+        return AuthorizationResult.authorized();
     }
 
     private static UserPermissionsResponse getFailedUserPermissionsResponse(String userEmail) {
@@ -191,6 +270,122 @@ public class AuthzHandler implements MessageHandler {
                                 .build()
                 )
                 .build();
+    }
+
+    /**
+     * Check if the user with the given session token has the required permission
+     * for the specified directory.
+     * 
+     * @param sessionToken the user's session token
+     * @param directory the directory to check permissions for (null for root)
+     * @param requiredPermission the required permission bitmask (CREATE, READ, UPDATE, DELETE)
+     * @return AuthorizationResult indicating success or failure with error message
+     */
+    public AuthorizationResult checkPermission(String sessionToken, String directory, int requiredPermission) {
+        if (sessionToken == null || sessionToken.isEmpty()) {
+            return AuthorizationResult.unauthorized("No session token provided");
+        }
+
+        Optional<Session> sessionOpt = sessionRepository.getSession(sessionToken);
+        if (sessionOpt.isEmpty() || !sessionOpt.get().getIsValid()) {
+            return AuthorizationResult.unauthorized("Invalid or expired session");
+        }
+
+        String userEmail = sessionOpt.get().getUserEmail();
+        if (userEmail == null || userEmail.isEmpty()) {
+            return AuthorizationResult.unauthorized("Session has no associated user");
+        }
+
+        Optional<UserAuth> userOpt = authRepository.getUserByEmail(userEmail);
+        if (userOpt.isEmpty()) {
+            return AuthorizationResult.unauthorized("User not found");
+        }
+
+        return evaluateDirectoryPermission(userOpt.get(), userEmail, directory, requiredPermission);
+    }
+
+    private AuthorizationResult evaluateDirectoryPermission(UserAuth user, String userEmail, String directory, int requiredPermission) {
+        if (user.getIsAdmin()) {
+            LOG.debug("User {} is admin, granting access", userEmail);
+            return AuthorizationResult.authorized();
+        }
+
+        if (directory == null || directory.isEmpty()) {
+            return checkRootPermission(user, requiredPermission);
+        }
+
+        return checkSpecificDirectoryPermission(user, userEmail, directory, requiredPermission);
+    }
+
+    private AuthorizationResult checkRootPermission(UserAuth user, int requiredPermission) {
+        Map<String, Integer> permissions = user.getPermissionsMap();
+        Integer rootPerm = permissions.get("");
+        if (rootPerm == null) {
+            rootPerm = permissions.get("/");
+        }
+        if (rootPerm != null && PermissionConstants.hasPermission(rootPerm, requiredPermission)) {
+            return AuthorizationResult.authorized();
+        }
+        return AuthorizationResult.forbidden("No permission for root directory");
+    }
+
+    private AuthorizationResult checkSpecificDirectoryPermission(UserAuth user, String userEmail, String directory, int requiredPermission) {
+        Map<String, Integer> permissions = user.getPermissionsMap();
+        Integer directoryPerm = permissions.get(directory);
+
+        if (directoryPerm == null) {
+            LOG.debug("User {} has no permissions for directory {}", userEmail, directory);
+            return AuthorizationResult.forbidden("No permission for directory: " + directory);
+        }
+
+        if (PermissionConstants.hasPermission(directoryPerm, requiredPermission)) {
+            LOG.debug("User {} authorized for {} on directory {}", userEmail, requiredPermission, directory);
+            return AuthorizationResult.authorized();
+        }
+
+        LOG.debug("User {} lacks permission {} for directory {}", userEmail, requiredPermission, directory);
+        return AuthorizationResult.forbidden("Insufficient permissions for directory: " + directory);
+    }
+
+    /**
+     * Result of an authorization check.
+     */
+    public static class AuthorizationResult {
+        private final boolean authorized;
+        private final String errorMessage;
+        private final boolean isUnauthorized; // 401 vs 403
+
+        private AuthorizationResult(boolean authorized, String errorMessage, boolean isUnauthorized) {
+            this.authorized = authorized;
+            this.errorMessage = errorMessage;
+            this.isUnauthorized = isUnauthorized;
+        }
+
+        public static AuthorizationResult authorized() {
+            return new AuthorizationResult(true, null, false);
+        }
+
+        /** 401 Unauthorized - authentication issue */
+        public static AuthorizationResult unauthorized(String message) {
+            return new AuthorizationResult(false, "Unauthorized: " + message, true);
+        }
+
+        /** 403 Forbidden - authenticated but lacks permission */
+        public static AuthorizationResult forbidden(String message) {
+            return new AuthorizationResult(false, "Forbidden: " + message, false);
+        }
+
+        public boolean isAuthorized() {
+            return authorized;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public boolean isUnauthorized() {
+            return isUnauthorized;
+        }
     }
 
 }

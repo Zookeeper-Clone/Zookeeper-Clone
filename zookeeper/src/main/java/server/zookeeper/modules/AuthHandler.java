@@ -139,15 +139,16 @@ public class AuthHandler implements MessageHandler {
             }
 
             String passwordHash = passwordHasher.hashPassword(request.getPassword());
+            boolean isInitialAdmin = isInitialAdmin(email);
             UserAuth userAuth = UserAuth.newBuilder()
                     .setEmail(email)
                     .setPasswordHash(passwordHash)
-                    .setIsAdmin(false)
-                    .setCanCreateDirectories(false)
+                    .setIsAdmin(isInitialAdmin)
+                    .setCanCreateDirectories(isInitialAdmin)
                     .build();
             authRepository.saveUser(userAuth);
 
-            LOG.info("Successfully registered user: {}", EmailUtils.maskEmail(email));
+            LOG.info("Successfully registered user: {} (isAdmin: {})", EmailUtils.maskEmail(email), isInitialAdmin);
 
             UserInfo userInfo = convertToUserInfo(userAuth);
             return AuthResponse.newBuilder()
@@ -174,13 +175,15 @@ public class AuthHandler implements MessageHandler {
                 LOG.warn("Registration failed: User already exists: {}", EmailUtils.maskEmail(email));
                 return createErrorAuthResponse("User with this email already exists");
             }
+            boolean isInitialAdmin = isInitialAdmin(email);
             UserAuth userAuth = UserAuth.newBuilder()
                     .setEmail(email)
                     .setGoogleToken(request.getGoogleToken())
-                    .setIsAdmin(false)
-                    .setCanCreateDirectories(false)
+                    .setIsAdmin(isInitialAdmin)
+                    .setCanCreateDirectories(isInitialAdmin)
                     .build();
             authRepository.saveOAuthUser(userAuth);
+            LOG.info("Successfully registered OAuth user: {} (isAdmin: {})", EmailUtils.maskEmail(email), isInitialAdmin);
             UserInfo userInfo = convertToUserInfo(userAuth);
             return AuthResponse.newBuilder()
                     .setSuccess(true)
@@ -521,6 +524,14 @@ public class AuthHandler implements MessageHandler {
         }
 
         return ValidationResult.success();
+    }
+
+    private boolean isInitialAdmin(String email) {
+        String configuredAdmin = System.getenv("ADMIN_EMAIL");
+        if (configuredAdmin != null && !configuredAdmin.isEmpty() && email.equalsIgnoreCase(configuredAdmin.trim())) {
+            return true;
+        }
+        return authRepository.isEmpty();
     }
 
     private Message createErrorResponse(String errorMessage) {

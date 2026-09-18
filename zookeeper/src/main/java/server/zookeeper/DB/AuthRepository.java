@@ -151,6 +151,15 @@ public class AuthRepository {
         }
     }
 
+    public boolean isEmpty() {
+        try {
+            return database.getAllEntries(AUTH_DIRECTORY).isEmpty();
+        } catch (Exception e) {
+            LOG.warn("Failed to check if AuthRepository is empty", e);
+            return false;
+        }
+    }
+
     private byte[] emailToKey(String email) {
         return email.toLowerCase().trim().getBytes(StandardCharsets.UTF_8);
     }

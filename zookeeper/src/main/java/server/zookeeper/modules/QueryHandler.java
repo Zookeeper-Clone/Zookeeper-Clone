@@ -13,19 +13,22 @@ import server.zookeeper.proto.query.QueryResponse;
 import server.zookeeper.proto.query.QueryType;
 import server.zookeeper.proto.query.UserQuery;
 import server.zookeeper.proto.query.WatchEventType;
+import server.zookeeper.util.PermissionConstants;
 import server.zookeeper.util.ReservedDirectories;
 
 public class QueryHandler implements MessageHandler {
     private final DataBase keyValStore;
     private final SessionManager sessionManager;
+    private final AuthzHandler authzHandler;
     private static final String HANDLER_TYPE = "QUERY";
     private final Logger LOG = LoggerFactory.getLogger(QueryHandler.class);
     // TODO : use dependency injection
     private final WatchManager watchManager = new WatchManager();
 
-    public QueryHandler(DataBase keyValStore, SessionManager sessionManager) {
+    public QueryHandler(DataBase keyValStore, SessionManager sessionManager, AuthzHandler authzHandler) {
         this.keyValStore = keyValStore;
         this.sessionManager = sessionManager;
+        this.authzHandler = authzHandler;
     }
 
     @Override
@@ -35,12 +38,29 @@ public class QueryHandler implements MessageHandler {
             UserQuery query = UserQuery.parseFrom(payload);
             String key = query.getKey();
             String directory = query.getDirectory().isEmpty() ? null : query.getDirectory();
+            String sessionToken = query.getSessionToken();
 
             if (ReservedDirectories.isReserved(directory)) {
                 response.setSuccess(false)
                         .setErrorMessage(ReservedDirectories.getReservedDirectoryError(directory));
                 return CompletableFuture
-                        .completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));            }
+                        .completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));
+            }
+
+            // Authorization check - determine required permission based on query type
+            int requiredPermission = getRequiredPermission(query.getQueryType());
+            if (requiredPermission != 0) {
+                AuthzHandler.AuthorizationResult authResult = authzHandler.checkPermission(sessionToken, directory, requiredPermission);
+                if (!authResult.isAuthorized()) {
+                    LOG.warn("Authorization failed for query type {} on directory {}: {}", 
+                            query.getQueryType(), directory, authResult.getErrorMessage());
+                    response.setSuccess(false)
+                            .setErrorMessage(authResult.getErrorMessage());
+                    return CompletableFuture
+                            .completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));
+                }
+            }
+
             switch (query.getQueryType()) {
                 case GET:
                     get(directory, query, response);
@@ -68,7 +88,27 @@ public class QueryHandler implements MessageHandler {
             response.setSuccess(false).setErrorMessage("Failed to handle query: " + e.getMessage());
         }
         LOG.info("SUCCESSFULLY EXECUTED");
-        return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));    }
+        return CompletableFuture.completedFuture(Message.valueOf(ByteString.copyFrom(response.build().toByteArray())));
+    }
+
+    /**
+     * Get the required permission bitmask for a given query type.
+     */
+    private int getRequiredPermission(QueryType queryType) {
+        switch (queryType) {
+            case GET:
+            case WATCH:
+                return PermissionConstants.READ;
+            case CREATE:
+                return PermissionConstants.CREATE;
+            case UPDATE:
+                return PermissionConstants.UPDATE;
+            case DELETE:
+                return PermissionConstants.DELETE;
+            default:
+                return 0;
+        }
+    }
     private void delete(boolean isMutation, QueryResponse.Builder response, UserQuery query, String directory) {
         if (!isMutation) {
             response.setSuccess(false).setErrorMessage("DELETE operation requires mutation flag");

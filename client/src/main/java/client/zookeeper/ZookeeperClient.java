@@ -341,6 +341,10 @@ public class ZookeeperClient implements AutoCloseable {
         return sendPermissionsRequest(request, false);
     }
 
+    public PermissionsResult setDirectoryPermission(String email, String directory, int permissionMask) {
+        return setDirectoryPermissions(email, java.util.Collections.singletonMap(directory, permissionMask));
+    }
+
     private PermissionsResult parsePermissionsResponse(ByteString responseBytes) {
         if (responseBytes == null) {
             return PermissionsResult.failure("Invalid server response");

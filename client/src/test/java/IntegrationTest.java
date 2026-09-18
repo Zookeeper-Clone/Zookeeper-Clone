@@ -29,6 +29,8 @@ public class IntegrationTest {
         });
         client.register("test@user.com", "user12345");
         client.login("test@user.com", "user12345");
+        // Grant admin permissions to bypass authorization checks
+        client.setIsAdmin("test@user.com", true);
     }
 
     @AfterAll
@@ -259,6 +261,8 @@ public class IntegrationTest {
         })) {
             ephemeralClient.register("ephemeral@user.com", "pass1234");
             ephemeralClient.login("ephemeral@user.com", "pass1234");
+            // Main client (admin) grants permissions to ephemeral user
+            client.setIsAdmin("ephemeral@user.com", true);
             String key = namespaced("ephemeralKey");
             String value = "temporary";
 

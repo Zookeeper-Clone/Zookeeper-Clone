@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.apache.ratis.client.RaftClient;
 import org.junit.jupiter.api.*;
 
+import client.zookeeper.PermissionConstants;
 import client.zookeeper.RaftClientBuilder;
 import client.zookeeper.ZookeeperClient;
 
@@ -27,15 +28,13 @@ public class PermissionIntegrationTest {
                 .build();
         client = new ZookeeperClient(raftClient, event -> {});
 
-//         register target users that will have permissions updated
-        client.register("alice@example.com", "alicepwd12");
-        client.register("bob@example.com", "bobpwd123");
-
-        // create and login an admin user to perform permission changes
-        client.register("perm_admin@user.com", "adminpass");
+        // Register and login initial admin user first (receives automatic admin privileges)
+        client.register("perm_admin@user.com", "adminpass1");
         client.login("perm_admin@user.com", "adminpass1");
 
-
+        // Register target users that will have permissions updated
+        client.register("alice@example.com", "alicepwd12");
+        client.register("bob@example.com", "bobpwd123");
     }
 
     @AfterAll
@@ -91,9 +90,58 @@ public class PermissionIntegrationTest {
 
     @Test
     @Order(4)
+    public void testSetGranularCRUDPermissions() {
+        // Assign bob READ_ONLY (2) on 'reports' and MODIFY_ONLY (6 = READ | UPDATE) on 'logs'
+        client.setDirectoryPermission("bob@example.com", "reports", PermissionConstants.READ_ONLY);
+        client.setDirectoryPermission("bob@example.com", "logs", PermissionConstants.MODIFY_ONLY);
+
+        ZookeeperClient.PermissionsResult getBob = client.getUserPermissionsByEmail("bob@example.com");
+        assertTrue(getBob.isSuccess());
+        assertNotNull(getBob.getUserPermissions());
+
+        Map<String, Integer> returned = getBob.getUserPermissions().getDirectoryPermissionsMap();
+        assertEquals(Integer.valueOf(PermissionConstants.READ_ONLY), returned.get("reports"));
+        assertEquals(Integer.valueOf(PermissionConstants.MODIFY_ONLY), returned.get("logs"));
+        assertTrue(PermissionConstants.canRead(returned.get("reports")));
+        assertFalse(PermissionConstants.canCreate(returned.get("reports")));
+        assertFalse(PermissionConstants.canUpdate(returned.get("reports")));
+
+        assertTrue(PermissionConstants.canRead(returned.get("logs")));
+        assertTrue(PermissionConstants.canUpdate(returned.get("logs")));
+        assertFalse(PermissionConstants.canCreate(returned.get("logs")));
+        assertFalse(PermissionConstants.canDelete(returned.get("logs")));
+    }
+
+    @Test
+    @Order(5)
     public void testGetNonExistentUserPermissionsFails() {
         ZookeeperClient.PermissionsResult res = client.getUserPermissionsByEmail("noone@nowhere.com");
         assertFalse(res.isSuccess(), "Request for non-existent user should fail");
         assertNull(res.getUserPermissions(), "No permissions should be returned for missing user");
+    }
+
+    @Test
+    @Order(6)
+    public void testNonAdminCannotModifyPermissions() {
+        RaftClient userRaftClient = new RaftClientBuilder()
+                .setPeers(IDS, PORTS)
+                .setGroupId(GROUP_ID)
+                .build();
+        try (ZookeeperClient userClient = new ZookeeperClient(userRaftClient, event -> {})) {
+            userClient.login("bob@example.com", "bobpwd123");
+            // Bob is not admin, so attempting to set admin on alice should fail
+            ZookeeperClient.PermissionsResult failAdmin = userClient.setIsAdmin("alice@example.com", false);
+            assertFalse(failAdmin.isSuccess(), "Non-admin should not be able to set isAdmin");
+
+            // Bob attempting to view alice's permissions should fail
+            ZookeeperClient.PermissionsResult failGet = userClient.getUserPermissionsByEmail("alice@example.com");
+            assertFalse(failGet.isSuccess(), "Non-admin should not be able to view another user's permissions");
+
+            // Bob viewing his own permissions should succeed
+            ZookeeperClient.PermissionsResult ownPerms = userClient.getUserPermissionsByEmail("bob@example.com");
+            assertTrue(ownPerms.isSuccess(), "User should be able to view their own permissions");
+        } catch (Exception e) {
+            fail("Exception during non-admin permission test: " + e.getMessage());
+        }
     }
 }

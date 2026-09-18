@@ -17,8 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class QueryHandlerTest {
@@ -26,6 +25,7 @@ public class QueryHandlerTest {
     private DataBase mockDb;
     private WatchManager mockWatchManager;
     private SessionManager mockSessionManager;
+    private AuthzHandler mockAuthzHandler;
     private QueryHandler handler;
     private MockedStatic<ReservedDirectories> reservedMock;
 
@@ -34,8 +34,11 @@ public class QueryHandlerTest {
         mockDb = mock(DataBase.class);
         mockWatchManager = mock(WatchManager.class);
         mockSessionManager = mock(SessionManager.class);
-        // Assuming QueryHandler constructor accepts all dependencies now
-        handler = new QueryHandler(mockDb, mockSessionManager);
+        mockAuthzHandler = mock(AuthzHandler.class);
+        // Mock authorization to always succeed by default
+        when(mockAuthzHandler.checkPermission(any(), any(), anyInt()))
+                .thenReturn(AuthzHandler.AuthorizationResult.authorized());
+        handler = new QueryHandler(mockDb, mockSessionManager, mockAuthzHandler);
         reservedMock = mockStatic(ReservedDirectories.class);
     }
 
