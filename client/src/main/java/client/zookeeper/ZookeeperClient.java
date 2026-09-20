@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 public class ZookeeperClient implements AutoCloseable {
@@ -38,10 +39,21 @@ public class ZookeeperClient implements AutoCloseable {
     private final SessionManager sessionManager;
     private final WatchHandler watchHandler = new WatchHandler();
     private final Watcher watcher;
+    private volatile String currentUserEmail;
+    private final AtomicInteger consecutiveHeartbeatFailures = new AtomicInteger(0);
+    private static final int MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3;
 
     public void setSessionToken(String token) {
-        sessionManager.startSession(token, this::sendHeartbeat);
+        if (token == null || token.trim().isEmpty()) {
+            throw new IllegalArgumentException("Session token cannot be null or empty");
+        }
+        sessionManager.startSession(token.trim(), this::sendHeartbeat);
     }
+
+    public Optional<String> getCurrentUserEmail() {
+        return Optional.ofNullable(currentUserEmail);
+    }
+
     public ZookeeperClient(RaftClient raftClient, Watcher watcher) {
         this.raftClient = raftClient;
         this.watcher = watcher;
@@ -49,8 +61,16 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public AuthenticationResult register(String email, String password) {
-        AuthRequest authRequest = RequestFactory.buildAuthRequest(
-                AuthOperationType.REGISTER, email, password, sessionManager.getToken());
+        if (email == null || email.trim().isEmpty() || password == null || password.isEmpty()) {
+            return AuthenticationResult.failure("Email and password cannot be null or empty");
+        }
+        AuthRequest authRequest;
+        try {
+            authRequest = RequestFactory.buildAuthRequest(
+                    AuthOperationType.REGISTER, email.trim(), password, sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return AuthenticationResult.failure(e.getMessage());
+        }
         return sendAuthRequest(authRequest, false);
     }
 
@@ -59,31 +79,65 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public AuthenticationResult login(String email, String password) {
-        AuthRequest authRequest = RequestFactory.buildAuthRequest(
-                AuthOperationType.LOGIN, email, password, sessionManager.getToken());
+        if (email == null || email.trim().isEmpty() || password == null || password.isEmpty()) {
+            return AuthenticationResult.failure("Email and password cannot be null or empty");
+        }
+        AuthRequest authRequest;
+        try {
+            authRequest = RequestFactory.buildAuthRequest(
+                    AuthOperationType.LOGIN, email.trim(), password, sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return AuthenticationResult.failure(e.getMessage());
+        }
         AuthenticationResult result = sendAuthRequest(authRequest, false);
 
-        if (result.isSuccess() && result.getSessionToken().isPresent()) {
-            sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
-            LOG.info("User {} logged in successfully", email);
+        if (result.isSuccess()) {
+            if (result.getSessionToken().isPresent() && !result.getSessionToken().get().trim().isEmpty()) {
+                this.currentUserEmail = email.trim();
+                sessionManager.startSession(result.getSessionToken().get().trim(), this::sendHeartbeat);
+                LOG.info("User {} logged in successfully", email);
+            } else {
+                return AuthenticationResult.failure("Login succeeded on server but missing session token");
+            }
         }
         return result;
     }
 
     public AuthenticationResult registerOAuth(String email, String OAuthToken) {
-        AuthRequest authRequest = RequestFactory.buildOAuthRequest(
-                AuthOperationType.REGISTER_OAUTH, email, OAuthToken, sessionManager.getToken());
+        if (email == null || email.trim().isEmpty() || OAuthToken == null || OAuthToken.trim().isEmpty()) {
+            return AuthenticationResult.failure("Email and OAuth token cannot be null or empty");
+        }
+        AuthRequest authRequest;
+        try {
+            authRequest = RequestFactory.buildOAuthRequest(
+                    AuthOperationType.REGISTER_OAUTH, email.trim(), OAuthToken.trim(), sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return AuthenticationResult.failure(e.getMessage());
+        }
         return sendAuthRequest(authRequest, false);
     }
 
     public AuthenticationResult loginOAuth(String email, String OAuthToken) {
-        AuthRequest authRequest = RequestFactory.buildOAuthRequest(
-                AuthOperationType.LOGIN_OAUTH, email, OAuthToken, sessionManager.getToken());
+        if (email == null || email.trim().isEmpty() || OAuthToken == null || OAuthToken.trim().isEmpty()) {
+            return AuthenticationResult.failure("Email and OAuth token cannot be null or empty");
+        }
+        AuthRequest authRequest;
+        try {
+            authRequest = RequestFactory.buildOAuthRequest(
+                    AuthOperationType.LOGIN_OAUTH, email.trim(), OAuthToken.trim(), sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return AuthenticationResult.failure(e.getMessage());
+        }
         AuthenticationResult result = sendAuthRequest(authRequest, false);
 
-        if (result.isSuccess() && result.getSessionToken().isPresent()) {
-            sessionManager.startSession(result.getSessionToken().get(), this::sendHeartbeat);
-            LOG.info("User {} logged in successfully", email);
+        if (result.isSuccess()) {
+            if (result.getSessionToken().isPresent() && !result.getSessionToken().get().trim().isEmpty()) {
+                this.currentUserEmail = email.trim();
+                sessionManager.startSession(result.getSessionToken().get().trim(), this::sendHeartbeat);
+                LOG.info("User {} logged in successfully", email);
+            } else {
+                return AuthenticationResult.failure("Login succeeded on server but missing session token");
+            }
         }
         return result;
     }
@@ -93,23 +147,37 @@ public class ZookeeperClient implements AutoCloseable {
         if (token.isEmpty())
             return;
 
-        AuthRequest request = RequestFactory.buildHeartbeatRequest(token.get());
+        AuthRequest request;
+        try {
+            request = RequestFactory.buildHeartbeatRequest(token.get());
+        } catch (IllegalArgumentException e) {
+            LOG.warn("Failed to build heartbeat request: {}", e.getMessage());
+            return;
+        }
 
         AuthenticationResult result = sendAuthRequest(request, false);
 
-        if (!result.isSuccess()) {
+        if (result.isSuccess()) {
+            consecutiveHeartbeatFailures.set(0);
+        } else {
+            int failures = consecutiveHeartbeatFailures.incrementAndGet();
             String msg = result.getMessage();
-            if (isSessionError(msg)) {
-                LOG.warn("Heartbeat failed with session error: {}. Logging out.", msg);
+            if (isSessionError(msg) || failures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES) {
+                LOG.warn("Heartbeat failed (failures: {}, msg: {}). Invalidating session.", failures, msg);
                 sessionManager.invalidateSession();
+                currentUserEmail = null;
             } else {
-                LOG.warn("Heartbeat failed: {}", msg);
+                LOG.warn("Heartbeat failed (attempt {}): {}", failures, msg);
             }
         }
     }
 
     private boolean isSessionError(String msg) {
-        return msg != null && (msg.contains("Unauthorized") || msg.contains("expired session"));
+        if (msg == null) return false;
+        String lower = msg.toLowerCase();
+        return lower.contains("unauthorized") || lower.contains("expired session")
+                || lower.contains("invalid session") || lower.contains("session expired")
+                || lower.contains("session not found");
     }
 
     public boolean isAuthenticated() {
@@ -137,6 +205,7 @@ public class ZookeeperClient implements AutoCloseable {
 
         // Always invalidate local session regardless of server response
         sessionManager.invalidateSession();
+        currentUserEmail = null;
         LOG.info("User logged out");
 
         return result;
@@ -164,11 +233,11 @@ public class ZookeeperClient implements AutoCloseable {
                         ? raftClient.io().sendReadOnly(message)
                         : raftClient.io().send(message);
 
-            if (!reply.isSuccess()) {
+            if (reply == null || !reply.isSuccess() || reply.getMessage() == null) {
                 return responseParser.apply(null);
             }
             return responseParser.apply(reply.getMessage().getContent());
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOG.error("Request failed", e);
             return responseParser.apply(null);
         }
@@ -192,12 +261,18 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     private AuthenticationResult parseAuthResponse(ByteString responseBytes) {
+        if (responseBytes == null) {
+            return AuthenticationResult.failure("Transport failure or request rejected by cluster");
+        }
         try {
             AuthResponse authResponse = AuthResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
-
+            boolean success = authResponse.getSuccess();
+            String error = authResponse.getErrorMessage();
+            String message = success ? (error != null && !error.isEmpty() ? error : "Success")
+                                     : (error != null && !error.isEmpty() ? error : "Authentication failed");
             return new AuthenticationResult(
-                    authResponse.getSuccess(),
-                    authResponse.getErrorMessage(),
+                    success,
+                    message,
                     authResponse.getSessionToken());
 
         } catch (InvalidProtocolBufferException e) {
@@ -207,6 +282,9 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     private QueryResult parseQueryResponse(ByteString responseBytes) {
+        if (responseBytes == null) {
+            return QueryResult.failure("Transport failure or request rejected by cluster");
+        }
         try {
             QueryResponse queryResponse = QueryResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
 
@@ -215,7 +293,7 @@ public class ZookeeperClient implements AutoCloseable {
                     queryResponse.getErrorMessage(),
                     queryResponse.getValue());
         } catch (InvalidProtocolBufferException e) {
-            LOG.error("Failed to parse query response");
+            LOG.error("Failed to parse query response", e);
             return QueryResult.failure("Invalid Server response");
         }
     }
@@ -227,7 +305,7 @@ public class ZookeeperClient implements AutoCloseable {
 
     private MetricsResult parseMetricsResponse(ByteString responseBytes) {
         if (responseBytes == null) {
-            return MetricsResult.failure("Invalid server response");
+            return MetricsResult.failure("Transport failure or request rejected by cluster");
         }
         try {
             MetricsResponse resp = MetricsResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());
@@ -244,13 +322,20 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult read(String key) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", "", false, sessionManager.getToken());
-        return sendQueryRequest(q, true);
+        return read(key, "");
     }
 
     public QueryResult read(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory, false,
-                sessionManager.getToken());
+        if (key == null || key.trim().isEmpty()) {
+            return QueryResult.failure("Key cannot be null or empty");
+        }
+        UserQuery q;
+        try {
+            q = RequestFactory.buildUserQuery(QueryType.GET, key, "", directory == null ? "" : directory, false,
+                    sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return QueryResult.failure(e.getMessage());
+        }
         return sendQueryRequest(q, true);
     }
 
@@ -259,8 +344,16 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult create(String key, String value, String directory, boolean isEphemeral) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.CREATE, key, value, directory, isEphemeral,
-                sessionManager.getToken());
+        if (key == null || key.trim().isEmpty()) {
+            return QueryResult.failure("Key cannot be null or empty");
+        }
+        UserQuery q;
+        try {
+            q = RequestFactory.buildUserQuery(QueryType.CREATE, key, value == null ? "" : value,
+                    directory == null ? "" : directory, isEphemeral, sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return QueryResult.failure(e.getMessage());
+        }
         return sendQueryRequest(q, false);
     }
 
@@ -269,28 +362,49 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public QueryResult update(String key, String value, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.UPDATE, key, value, directory, false,
-                sessionManager.getToken());
+        if (key == null || key.trim().isEmpty()) {
+            return QueryResult.failure("Key cannot be null or empty");
+        }
+        UserQuery q;
+        try {
+            q = RequestFactory.buildUserQuery(QueryType.UPDATE, key, value == null ? "" : value,
+                    directory == null ? "" : directory, false, sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return QueryResult.failure(e.getMessage());
+        }
         return sendQueryRequest(q, false);
     }
 
     public QueryResult delete(String key) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", "", false, sessionManager.getToken());
-        return sendQueryRequest(q, false);
+        return delete(key, "");
     }
 
     public QueryResult delete(String key, String directory) {
-        UserQuery q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "", directory, false,
-                sessionManager.getToken());
+        if (key == null || key.trim().isEmpty()) {
+            return QueryResult.failure("Key cannot be null or empty");
+        }
+        UserQuery q;
+        try {
+            q = RequestFactory.buildUserQuery(QueryType.DELETE, key, "",
+                    directory == null ? "" : directory, false, sessionManager.getToken());
+        } catch (IllegalArgumentException e) {
+            return QueryResult.failure(e.getMessage());
+        }
         return sendQueryRequest(q, false);
     }
 
     public void addWatch(String key, String directory) {
-        watchHandler.sendWatchRequest(key, directory, null);
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("Key cannot be null or empty");
+        }
+        watchHandler.sendWatchRequest(key.trim(), directory == null ? "" : directory.trim(), null);
     }
 
     public void addWatch(String key, String directory, Watcher watcher) {
-        watchHandler.sendWatchRequest(key, directory, watcher);
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("Key cannot be null or empty");
+        }
+        watchHandler.sendWatchRequest(key.trim(), directory == null ? "" : directory.trim(), watcher);
     }
 
     private PermissionsResult sendPermissionsRequest(UserPermissionsRequest request, boolean isReadOnly) {
@@ -298,7 +412,10 @@ public class ZookeeperClient implements AutoCloseable {
     }
 
     public PermissionsResult getUserPermissionsByEmail(String email) {
-        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.GET,
+        if (email == null || email.trim().isEmpty()) {
+            return PermissionsResult.failure("Email cannot be null or empty");
+        }
+        UserPermissionsRequest request = getUserPermissionsRequest(email.trim(), RequestType.GET,
                 UserPermissions.newBuilder().build(), sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, true);
     }
@@ -307,47 +424,76 @@ public class ZookeeperClient implements AutoCloseable {
             UserPermissions userPermissions, String token) {
         return UserPermissionsRequest.newBuilder()
                 .setRequestType(requestType)
-                .setUserEmail(email == null ? "" : email)
+                .setUserEmail(email == null ? "" : email.trim())
                 .setToken(token)
                 .setUserPermissions(userPermissions)
                 .build();
     }
 
     public PermissionsResult setIsAdmin(String email, boolean isAdmin) {
+        if (email == null || email.trim().isEmpty()) {
+            return PermissionsResult.failure("Email cannot be null or empty");
+        }
         UserPermissions userPerm = UserPermissions.newBuilder()
                 .setIsAdmin(isAdmin)
                 .build();
-        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_IS_ADMIN,
+        UserPermissionsRequest request = getUserPermissionsRequest(email.trim(), RequestType.SET_IS_ADMIN,
                 userPerm, sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
     public PermissionsResult setCanCreateDirectories(String email, boolean canCreate) {
+        if (email == null || email.trim().isEmpty()) {
+            return PermissionsResult.failure("Email cannot be null or empty");
+        }
         UserPermissions userPerm = UserPermissions.newBuilder()
                 .setCanCreateDirectories(canCreate)
                 .build();
-        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_CAN_CREATE_DIRECTORIES,
+        UserPermissionsRequest request = getUserPermissionsRequest(email.trim(), RequestType.SET_CAN_CREATE_DIRECTORIES,
                 userPerm, sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
     public PermissionsResult setDirectoryPermissions(String email, Map<String, Integer> directoryPermissions) {
-        UserPermissions.Builder permBuilder = UserPermissions.newBuilder();
-        if (directoryPermissions != null && !directoryPermissions.isEmpty()) {
-            permBuilder.putAllDirectoryPermissions(directoryPermissions);
+        if (email == null || email.trim().isEmpty()) {
+            return PermissionsResult.failure("Email cannot be null or empty");
         }
-        UserPermissionsRequest request = getUserPermissionsRequest(email, RequestType.SET_DIRECTORY_PERMISSIONS,
+        if (directoryPermissions == null || directoryPermissions.isEmpty()) {
+            return PermissionsResult.failure("Directory permissions cannot be null or empty");
+        }
+        UserPermissions.Builder permBuilder = UserPermissions.newBuilder();
+        for (Map.Entry<String, Integer> entry : directoryPermissions.entrySet()) {
+            String dir = entry.getKey();
+            Integer mask = entry.getValue();
+            if (dir == null || dir.trim().isEmpty()) {
+                return PermissionsResult.failure("Directory name cannot be null or empty");
+            }
+            if (mask == null || !PermissionConstants.isValid(mask)) {
+                return PermissionsResult.failure("Invalid permission mask: " + mask);
+            }
+            permBuilder.putDirectoryPermissions(dir.trim(), mask);
+        }
+        UserPermissionsRequest request = getUserPermissionsRequest(email.trim(), RequestType.SET_DIRECTORY_PERMISSIONS,
                 permBuilder.build(), sessionManager.getToken().orElseGet(String::new));
         return sendPermissionsRequest(request, false);
     }
 
     public PermissionsResult setDirectoryPermission(String email, String directory, int permissionMask) {
-        return setDirectoryPermissions(email, java.util.Collections.singletonMap(directory, permissionMask));
+        if (email == null || email.trim().isEmpty()) {
+            return PermissionsResult.failure("Email cannot be null or empty");
+        }
+        if (directory == null || directory.trim().isEmpty()) {
+            return PermissionsResult.failure("Directory name cannot be null or empty");
+        }
+        if (!PermissionConstants.isValid(permissionMask)) {
+            return PermissionsResult.failure("Invalid permission mask: " + permissionMask);
+        }
+        return setDirectoryPermissions(email.trim(), java.util.Collections.singletonMap(directory.trim(), permissionMask));
     }
 
     private PermissionsResult parsePermissionsResponse(ByteString responseBytes) {
         if (responseBytes == null) {
-            return PermissionsResult.failure("Invalid server response");
+            return PermissionsResult.failure("Transport failure or request rejected by cluster");
         }
         try {
             UserPermissionsResponse resp = UserPermissionsResponse.parseFrom(responseBytes.asReadOnlyByteBuffer());

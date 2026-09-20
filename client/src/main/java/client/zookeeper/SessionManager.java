@@ -15,14 +15,27 @@ public class SessionManager implements AutoCloseable{
     private static final long HEARTBEAT_INTERVAL_SECONDS = 30;
 
     public synchronized void startSession(String token, Runnable heartbeatAction) {
-        this.sessionToken = token;
+        if (token == null || token.trim().isEmpty()) {
+            throw new IllegalArgumentException("Session token cannot be null or empty");
+        }
+        this.sessionToken = token.trim();
         stopHeartbeat(); // Stop any existing heartbeat
         this.heartbeatTask = scheduler.scheduleAtFixedRate(
                                     heartbeatAction,
                                     HEARTBEAT_INTERVAL_SECONDS,
                                     HEARTBEAT_INTERVAL_SECONDS,
                                     TimeUnit.SECONDS);
-        LOG.info("Session started with token: {}. Heartbeat scheduled", token);
+        LOG.info("Session started with token: {}. Heartbeat scheduled", maskToken(this.sessionToken));
+    }
+
+    public static String maskToken(String token) {
+        if (token == null || token.isEmpty()) {
+            return "***";
+        }
+        if (token.length() <= 4) {
+            return "***";
+        }
+        return "***" + token.substring(token.length() - 4);
     }
 
     public synchronized void invalidateSession() {

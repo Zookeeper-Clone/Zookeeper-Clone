@@ -39,4 +39,23 @@ public class SessionManagerTest {
 
         sm.close();
     }
+
+    @Test
+    void testStartSessionWithInvalidTokensThrows() {
+        SessionManager sm = new SessionManager();
+        assertThrows(IllegalArgumentException.class, () -> sm.startSession(null, () -> {}));
+        assertThrows(IllegalArgumentException.class, () -> sm.startSession("", () -> {}));
+        assertThrows(IllegalArgumentException.class, () -> sm.startSession("   ", () -> {}));
+        sm.close();
+    }
+
+    @Test
+    void testMaskToken() {
+        assertEquals("***", SessionManager.maskToken(null));
+        assertEquals("***", SessionManager.maskToken(""));
+        assertEquals("***", SessionManager.maskToken("abc"));
+        assertEquals("***", SessionManager.maskToken("1234"));
+        assertEquals("***5678", SessionManager.maskToken("12345678"));
+        assertEquals("***abcd", SessionManager.maskToken("super-secret-token-abcd"));
+    }
 }

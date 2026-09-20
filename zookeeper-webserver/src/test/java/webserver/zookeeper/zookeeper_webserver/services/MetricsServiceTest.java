@@ -114,13 +114,31 @@ class MetricsServiceTest {
 
         // Assert
         assertNotNull(raftMap);
-        assertEquals("N/A", raftMap.get("term"));
-        assertEquals("N/A", raftMap.get("role"));
-        assertEquals("N/A", raftMap.get("log.appliedIndex"));
-        assertEquals("N/A", raftMap.get("log.commitIndex"));
-        assertEquals("N/A", raftMap.get("log.lastIndex"));
         assertEquals("N/A", raftMap.get("appendEntry.latencyMs"));
-        assertEquals("N/A", raftMap.get("heartbeat.latencyMs"));
+        assertEquals(0L, raftMap.get("success"));
+        assertEquals(0L, raftMap.get("failure"));
+    }
+
+    @Test
+    void testCollectMetrics_WithZookeeperMetrics() {
+        ZookeeperClient.MetricsResult metricsResult = new ZookeeperClient.MetricsResult(
+                true, null, 5L, 2L, 100L, 50L, 3, 1L, 12.5);
+        when(zookeeperClient.getMetrics()).thenReturn(metricsResult);
+
+        Map<String, Object> metrics = metricsService.collectMetrics();
+        Map<String, Object> raftMap = (Map<String, Object>) metrics.get("raft");
+        Map<String, Object> zkMap = (Map<String, Object>) metrics.get("zookeeper");
+
+        assertNotNull(raftMap);
+        assertEquals(12.5, raftMap.get("appendEntry.latencyMs"));
+        assertEquals(5L, raftMap.get("electionCount"));
+        assertEquals(2L, raftMap.get("timeoutCount"));
+        assertEquals(3L, raftMap.get("numPendingRequestsInQueue"));
+
+        assertNotNull(zkMap);
+        assertEquals(100L, zkMap.get("clientReadRequests"));
+        assertEquals(50L, zkMap.get("clientWriteRequests"));
+        assertEquals(1L, zkMap.get("numFailedClientReadOnServer"));
     }
 
     @Test

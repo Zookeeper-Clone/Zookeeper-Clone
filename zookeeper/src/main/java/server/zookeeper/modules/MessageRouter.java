@@ -105,9 +105,9 @@ public class MessageRouter {
         switch (type) {
             case METRICS:
             case QUERY:
+            case PERMISSIONS:
                 return true;
             case AUTH:
-            case PERMISSIONS: // TODO : Permissions for sure requires authentication
                 return false;
             default:
                 throw new IllegalArgumentException("Unknown message type: " + type);

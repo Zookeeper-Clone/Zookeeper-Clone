@@ -27,6 +27,9 @@ public class MessageRouterTest {
     private MessageHandler mockAuthHandler;
 
     @Mock
+    private MessageHandler mockPermissionsHandler;
+
+    @Mock
     private SessionManager mockSessionManager;
     private MessageRouter router;
 
@@ -42,9 +45,14 @@ public class MessageRouterTest {
         when(mockAuthHandler.handle(any(), anyBoolean()))
                 .thenReturn(CompletableFuture.completedFuture(Message.valueOf("AUTH_RESPONSE")));
 
+        when(mockPermissionsHandler.getHandlerType()).thenReturn("PERMISSIONS");
+        when(mockPermissionsHandler.handle(any(), anyBoolean()))
+                .thenReturn(CompletableFuture.completedFuture(Message.valueOf("PERMISSIONS_RESPONSE")));
+
         router = new MessageRouter(mockQueryHandler, mockSessionManager);
         router.registerHandler(MessageType.QUERY, mockQueryHandler);
         router.registerHandler(MessageType.AUTH, mockAuthHandler);
+        router.registerHandler(MessageType.PERMISSIONS, mockPermissionsHandler);
     }
 
     @Test
@@ -116,5 +124,41 @@ public class MessageRouterTest {
         // Should return error and NOT call handler
         assertTrue(result.getContent().toStringUtf8().contains("Unauthorized"));
         verify(mockQueryHandler, never()).handle(any(), anyBoolean());
+    }
+
+    @Test
+    void testRouteWrappedPermissionsMessageAuthorized() throws ExecutionException, InterruptedException {
+        String token = "valid-token";
+        when(mockSessionManager.validateSession(token)).thenReturn(true);
+
+        MessageWrapper wrapper = MessageWrapper.newBuilder()
+                .setType(MessageType.PERMISSIONS)
+                .setPayload(ByteString.copyFromUtf8("PERM_PAYLOAD"))
+                .setSessionToken(token)
+                .build();
+
+        Message result = router.route(wrapper.toByteArray(), true).get();
+
+        assertEquals("PERMISSIONS_RESPONSE", result.getContent().toStringUtf8());
+        verify(mockPermissionsHandler, times(1)).handle(any(), eq(true));
+        verify(mockSessionManager).validateSession(token);
+    }
+
+    @Test
+    void testRouteWrappedPermissionsMessageUnauthorized() throws ExecutionException, InterruptedException {
+        String token = "invalid-token";
+        when(mockSessionManager.validateSession(token)).thenReturn(false);
+
+        MessageWrapper wrapper = MessageWrapper.newBuilder()
+                .setType(MessageType.PERMISSIONS)
+                .setPayload(ByteString.copyFromUtf8("PERM_PAYLOAD"))
+                .setSessionToken(token)
+                .build();
+
+        Message result = router.route(wrapper.toByteArray(), true).get();
+
+        assertTrue(result.getContent().toStringUtf8().contains("Unauthorized"));
+        verify(mockPermissionsHandler, never()).handle(any(), anyBoolean());
+        verify(mockSessionManager).validateSession(token);
     }
 }

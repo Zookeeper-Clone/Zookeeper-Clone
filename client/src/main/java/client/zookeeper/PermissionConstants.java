@@ -39,11 +39,23 @@ public final class PermissionConstants {
     
     /** Create, read, and update without delete */
     public static final int READ_WRITE = CREATE | READ | UPDATE;
-    
     /** Full CRUD access */
     public static final int FULL_ACCESS = CREATE | READ | UPDATE | DELETE;
-    
+
+    /**
+     * Checks if a permission mask contains only valid permission bits (0 to FULL_ACCESS).
+     * 
+     * @param mask the bitmask to validate
+     * @return true if the mask is non-negative and contains no bits outside FULL_ACCESS
+     */
+    public static boolean isValid(int mask) {
+        return mask >= 0 && (mask & ~FULL_ACCESS) == 0;
+    }
+
     public static boolean hasPermission(int permissionMask, int requiredPermission) {
+        if (!isValid(permissionMask) || !isValid(requiredPermission) || requiredPermission == NONE) {
+            return false;
+        }
         return (permissionMask & requiredPermission) == requiredPermission;
     }
 
