@@ -446,4 +446,55 @@ public class AuthorizationTest {
         assertFalse(response.getSuccess());
         assertTrue(response.getErrorMessage().contains("Forbidden") || response.getErrorMessage().contains("Insufficient permissions"));
     }
+
+    @Test
+    public void testInvalidDirectoryMasksRejectEntireRequest() {
+        when(mockSessionRepository.getSession(VALID_TOKEN))
+                .thenReturn(Optional.of(createSession(VALID_TOKEN, ADMIN_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(ADMIN_EMAIL))
+                .thenReturn(Optional.of(createUser(ADMIN_EMAIL, true, null)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, Map.of("existing", 2))));
+
+        for (int mask : new int[]{-1, Integer.MIN_VALUE, 16, 32, 17, Integer.MAX_VALUE}) {
+            UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                    .setRequestType(RequestType.SET_DIRECTORY_PERMISSIONS)
+                    .setToken(VALID_TOKEN)
+                    .setUserEmail(TEST_USER_EMAIL)
+                    .setUserPermissions(UserPermissions.newBuilder()
+                            .putDirectoryPermissions("valid", 15)
+                            .putDirectoryPermissions("invalid", mask))
+                    .build();
+            UserPermissionsResponse response = authzHandler.setDirectoriesPermissions(request);
+            assertFalse(response.getSuccess(), "Must reject mask " + mask);
+            assertTrue(response.getErrorMessage().contains("Invalid permission mask"));
+            verify(mockAuthRepository, never()).updateUser(any());
+        }
+    }
+
+    @Test
+    public void testAllSupportedDirectoryMasksArePersisted() {
+        when(mockSessionRepository.getSession(VALID_TOKEN))
+                .thenReturn(Optional.of(createSession(VALID_TOKEN, ADMIN_EMAIL)));
+        when(mockAuthRepository.getUserByEmail(ADMIN_EMAIL))
+                .thenReturn(Optional.of(createUser(ADMIN_EMAIL, true, null)));
+        when(mockAuthRepository.getUserByEmail(TEST_USER_EMAIL))
+                .thenReturn(Optional.of(createUser(TEST_USER_EMAIL, false, Map.of("existing", 2))));
+        Map<String, Integer> permissions = new HashMap<>();
+        for (int mask = 0; mask <= 15; mask++) {
+            permissions.put("directory-" + mask, mask);
+        }
+        UserPermissionsRequest request = UserPermissionsRequest.newBuilder()
+                .setRequestType(RequestType.SET_DIRECTORY_PERMISSIONS)
+                .setToken(VALID_TOKEN)
+                .setUserEmail(TEST_USER_EMAIL)
+                .setUserPermissions(UserPermissions.newBuilder().putAllDirectoryPermissions(permissions))
+                .build();
+        UserPermissionsResponse response = authzHandler.setDirectoriesPermissions(request);
+        assertTrue(response.getSuccess());
+        permissions.put("existing", 2);
+        assertEquals(permissions, response.getUserPermissions().getDirectoryPermissionsMap());
+        verify(mockAuthRepository).updateUser(argThat(user ->
+                user.getEmail().equals(TEST_USER_EMAIL) && user.getPermissionsMap().equals(permissions)));
+    }
 }

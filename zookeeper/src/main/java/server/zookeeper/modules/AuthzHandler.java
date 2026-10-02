@@ -209,6 +209,13 @@ public class AuthzHandler implements MessageHandler {
         String userEmail = request.getUserEmail();
         Map<String, Integer> directoriesPermissions = request.getUserPermissions().getDirectoryPermissionsMap();
 
+        // Validate the entire update before persisting any permissions. Zero revokes access.
+        for (int mask : directoriesPermissions.values()) {
+            if (!PermissionConstants.isValid(mask)) {
+                return createErrorResponse("Invalid permission mask: " + mask);
+            }
+        }
+
         Optional<UserAuth> optUser = authRepository.getUserByEmail(userEmail);
         if (optUser.isEmpty()) {
             return getFailedUserPermissionsResponse(userEmail);
